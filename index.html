@@ -67,12 +67,18 @@ input[type=checkbox]{width:22px;min-height:22px;height:22px;accent-color:var(--a
 .pages canvas{max-width:100%;height:auto!important;border-radius:6px;box-shadow:0 4px 30px #0008}
 .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--acc);color:var(--ink);padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .toast.on{opacity:1}
+.tbl{width:100%;border-collapse:collapse;font:14px/1.4 var(--mono)}.tbl th{text-align:left;color:var(--mute);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}.tbl td.d{font-family:Inter,sans-serif;white-space:normal;min-width:200px;color:var(--mute)}.tbl .r{text-align:right}
+.cmd{font:500 14px var(--mono);color:var(--acc);background:var(--bg);padding:3px 8px;border-radius:6px;display:inline-block;margin-bottom:4px;overflow-wrap:anywhere}
+code{font-family:var(--mono);color:var(--cy)}
+.tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.tabs button{flex:none}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
-nav{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;padding:6px 4px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);z-index:40;justify-content:space-around;gap:0}
+nav{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;padding:8px 4px calc(10px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);z-index:40;justify-content:space-around;gap:0}
 .brand{display:none}
-nav a{flex-direction:column;gap:3px;font-size:11px;padding:6px 2px;flex:1;justify-content:center}
+nav a{flex-direction:column;gap:4px;font-size:12.5px;padding:8px 2px;flex:1;justify-content:center;min-height:62px}
+nav a svg{width:26px;height:26px}
+main{padding-bottom:130px}
 nav a.on{box-shadow:inset 0 2px 0 var(--acc)}
 }
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -155,6 +161,7 @@ V.accueil=()=>{
    <div class="card"><h2>Prochain DS</h2>${ds?`<div class="big">J-${daysTo(ds.date)}</div><p style="margin:10px 0 0">${esc(ds.titre)} <span class="tag ds">${esc(ds.module)}</span></p><p class="m" style="color:var(--mute);margin:4px 0 0">${fmtD(ds.date)}</p>`:'<p class="empty">Aucun DS prévu. Ajoute-le dans Devoirs.</p>'}</div>
    <div class="card"><h2>Moyenne générale</h2><div class="big ${g!==null&&g<10?'ko':''}">${fx(g)}<small> /20</small></div>${ueAvgs().map(x=>`<div class="row"><span class="t">${UES[x.u]}</span><b class="${x.m===null?'':x.m>=10?'ok':'ko'}" style="font-family:var(--mono)">${fx(x.m)}</b></div>`).join('')}</div>
    <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map(c=>rowCours({...c,titre:c.titre||c.module})).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
+   <div class="card"><h2>Révisions du jour</h2><div class="big" style="color:var(--cy)">${dueCount()}<small> carte${dueCount()>1?'s':''}</small></div><p style="margin:10px 0 0"><a href="#revisions" data-gofc style="color:var(--acc)">Réviser maintenant →</a></p>${absStats().nj?`<p class="m" style="color:var(--bad);margin:8px 0 0">${fh(absStats().nj)} d'absences non justifiées</p>`:''}</div>
    <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
   </div>`;
 };
@@ -176,9 +183,21 @@ V.edt=()=>{
    <button>Ajouter</button></form>
   ${[1,2,3,4,5,6].map(j=>{const l=edt.filter(c=>+c.jour===j).sort((a,b)=>a.debut.localeCompare(b.debut));return l.length?`<h2 style="margin-top:18px">${JOURS[j]}</h2>`+l.map(c=>`<div class="row"><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.module)}<div class="m">${esc(c.salle)}</div></span><span class="tag cy">${esc(c.type)}</span><button class="x" data-del="edt" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join(''):''}).join('')||'<p class="empty">Aucun cours pour l\'instant.</p>'}</div></details>`;
 };
+V.devoirs=()=>{
+  const dv=S.get('devoirs',[]).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));
+  return `<h1>Devoirs & <b>DS</b></h1><p class="sub">Triés par urgence</p>
+  <div class="card"><form class="f" data-f="devoirs">
+   <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" required><input name="module" placeholder="Module" required>
+   <select name="type"><option>Devoir</option><option>DS</option><option>Projet</option></select>
+   <input name="date" type="date" required><button>Ajouter</button></form>
+   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span><button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
+};
+let notesTab='notes';
 V.notes=()=>{
   const notes=S.get('notes',[]);
-  return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Une UE est validée à partir de 10/20</p>
+  const tabs=`<div class="tabs"><button class="${notesTab==='notes'?'':'ghost'}" data-nt="notes">Notes</button><button class="${notesTab==='abs'?'':'ghost'}" data-nt="abs">Absences</button></div>`;
+  if(notesTab==='abs')return `<h1>Absences & <b>retards</b></h1><p class="sub">Garde un œil sur ton assiduité</p>${tabs}${absView()}`;
+  return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Une UE est validée à partir de 10/20</p>${tabs}
   <div class="card" style="margin-bottom:16px"><form class="f" data-f="notes">
    <input name="module" placeholder="Ressource / SAÉ (ex : R1.14)" required>
    <select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
@@ -189,30 +208,86 @@ V.notes=()=>{
   <div class="card" style="margin-top:16px"><h2>Simulateur</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Quelle note il te faut à la prochaine évaluation pour atteindre ton objectif ?</p>
    <form class="f" data-f="sim"><select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input name="coef" type="number" step="0.5" min="0.5" placeholder="Coef de l'éval" required><input name="obj" type="number" step="0.5" min="0" max="20" value="10" placeholder="Objectif"><button>Calculer</button></form><div id="simres"></div></div>`;
 };
-V.devoirs=()=>{
-  const dv=S.get('devoirs',[]).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));
-  return `<h1>Devoirs & <b>DS</b></h1><p class="sub">Triés par urgence</p>
-  <div class="card"><form class="f" data-f="devoirs">
-   <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" required><input name="module" placeholder="Module" required>
-   <select name="type"><option>Devoir</option><option>DS</option><option>Projet</option></select>
-   <input name="date" type="date" required><button>Ajouter</button></form>
-   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span><button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
+
+/* ---------- Absences ---------- */
+const absStats=()=>{const l=S.get('abs',[]),A=l.filter(a=>a.type==='Absence');
+  return {l,heures:A.reduce((s,a)=>s+ +a.duree,0),nj:A.filter(a=>!a.justif).reduce((s,a)=>s+ +a.duree,0),ret:l.filter(a=>a.type==='Retard').length}};
+const fh=n=>(Math.round(n*10)/10).toString().replace('.',',')+' h';
+const absView=()=>{
+  const {l,heures,nj,ret}=absStats(),seuil=+S.get('absSeuil',0);
+  const mods=[...new Set(l.map(a=>a.module))].map(m=>({m,h:l.filter(a=>a.module===m&&a.type==='Absence').reduce((s,a)=>s+ +a.duree,0),r:l.filter(a=>a.module===m&&a.type==='Retard').length})).sort((a,b)=>b.h-a.h);
+  const maxH=Math.max(1,...mods.map(x=>x.h));
+  return `${seuil&&nj>=seuil?`<div class="card" style="border-color:var(--bad);margin-bottom:16px"><b class="ko">⚠ Seuil atteint :</b> ${fh(nj)} d'absences non justifiées (ton seuil : ${fh(seuil)}). Pense à envoyer tes justificatifs.</div>`:''}
+  <div class="grid" style="margin-bottom:16px">
+   <div class="card"><h2>Non justifiées</h2><div class="big ${nj?'ko':''}">${fh(nj).replace(' h','')}<small> h</small></div></div>
+   <div class="card"><h2>Total absences</h2><div class="big" style="color:var(--cy)">${fh(heures).replace(' h','')}<small> h</small></div><p class="m" style="color:var(--mute);margin:8px 0 0">${ret} retard${ret>1?'s':''}</p></div>
+  </div>
+  <div class="card" style="margin-bottom:16px"><h2>Signaler</h2><form class="f" data-f="abs">
+   <input name="date" type="date" value="${isoDay(new Date())}" required><input name="module" placeholder="Module (ex : R1.07)" required>
+   <select name="type"><option>Absence</option><option>Retard</option></select>
+   <input name="duree" type="number" step="0.25" min="0" value="1.5" placeholder="Durée (h)" required>
+   <label style="display:flex;align-items:center;gap:10px;min-height:44px"><input type="checkbox" name="justif"> Justifiée</label>
+   <button>Ajouter</button></form>
+   ${l.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(a=>`<div class="row"><span class="t">${esc(a.module)}<div class="m">${fmtD(a.date)} · ${esc(a.type)} · ${fh(+a.duree)}</div></span><button class="ghost" data-just="${esc(a.id)}" style="min-height:36px;padding:0 10px;font-size:14px;color:${a.justif?'var(--acc)':'var(--bad)'}">${a.justif?'Justifiée':'Non justifiée'}</button><button class="x" data-del="abs" data-id="${esc(a.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucune absence. Parfait 👌</p>'}</div>
+  <div class="grid"><div class="card"><h2>Par module</h2>${mods.map(x=>`<div style="margin:10px 0"><div style="display:flex;justify-content:space-between"><span>${esc(x.m)}</span><b style="font-family:var(--mono)">${fh(x.h)}${x.r?` · ${x.r} ret.`:''}</b></div><div class="bar"><i style="width:${x.h/maxH*100}%;background:var(--cy)"></i></div></div>`).join('')||'<p class="empty">Rien à afficher.</p>'}</div>
+  <div class="card"><h2>Seuil d'alerte</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Mets ici la limite d'heures non justifiées indiquée dans ton règlement des études. L'app t'alertera quand tu l'atteins.</p><form class="f" data-f="seuil" style="grid-template-columns:1fr auto"><input name="s" type="number" step="0.5" min="0" value="${seuil||''}" placeholder="ex : 10"><button>Enregistrer</button></form></div></div>`;
 };
-let revTab='pdf',fcIdx=0,fcBack=false,fcMod='';
+
+/* ---------- Flashcards : répétition espacée (boîtes de Leitner) ---------- */
+let revTab='pdf',fcMod='',fcBack=false,fcAll=false;
+const BOX_DAYS=[0,1,2,4,8,16]; // boîte 1 → revoir demain, boîte 5 → dans 16 jours
+const addDays=n=>{const d=new Date();d.setDate(d.getDate()+n);return isoDay(d)};
+const fcDeck=()=>{const t=isoDay(new Date());return S.get('cards',[]).filter(c=>(!fcMod||c.module===fcMod)&&(fcAll||(c.due||'')<=t)).sort((a,b)=>fcAll?(a.last||0)-(b.last||0):(a.due||'').localeCompare(b.due||'')||(a.last||0)-(b.last||0))};
+const dueCount=()=>{const t=isoDay(new Date());return S.get('cards',[]).filter(c=>(c.due||'')<=t).length};
 V.revisions=()=>{
   const cards=S.get('cards',[]),mods=[...new Set(cards.map(c=>c.module))];
-  const deck=cards.filter(c=>!fcMod||c.module===fcMod);if(fcIdx>=deck.length)fcIdx=0;const cur=deck[fcIdx];
+  const deck=fcDeck(),cur=deck[0],mast=cards.filter(c=>(c.box||1)>=5).length;
+  const next=cards.filter(c=>!fcMod||c.module===fcMod).map(c=>c.due||'').sort()[0];
+  const dots=b=>`<span style="font-family:var(--mono);color:var(--acc);letter-spacing:2px" title="Niveau ${b}/5">${'●'.repeat(b)}<span style="color:var(--line)">${'●'.repeat(5-b)}</span></span>`;
   return `<h1><b>Révisions</b></h1><p class="sub">Tes guides et tes flashcards</p>
-  <div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides PDF</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards</button></div>
+  <div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides PDF</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button></div>
   ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R1.06)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
-  :`<div class="grid"><div class="card"><h2>S'entraîner</h2><select data-fm style="margin-bottom:12px"><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>
-   ${cur?`<div class="flash ${fcBack?'back':''}" data-flip>${esc(fcBack?cur.r:cur.q)}</div><div style="display:flex;gap:8px;align-items:center"><button class="ghost" data-fn="-1">←</button><span style="flex:1;text-align:center;color:var(--mute);font-family:var(--mono)">${fcIdx+1}/${deck.length}</span><button class="ghost" data-fn="1">→</button></div><p class="m" style="color:var(--mute);text-align:center;margin:8px 0 0">Touche la carte pour voir la réponse</p>`:'<p class="empty">Crée ta première carte.</p>'}</div>
-   <div class="card"><h2>Nouvelle carte</h2><form class="f" data-f="cards" style="grid-template-columns:1fr"><input name="module" placeholder="Module" required><textarea name="q" rows="2" placeholder="Question" required></textarea><textarea name="r" rows="2" placeholder="Réponse" required></textarea><button>Ajouter la carte</button></form>
-   ${cards.slice(-5).reverse().map(c=>`<div class="row"><span class="t">${esc(c.q)}<div class="m">${esc(c.module)}</div></span><button class="x" data-del="cards" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join('')}</div></div>`}`;
+  :`<div class="grid"><div class="card"><h2>${fcAll?'Révision libre':'À réviser aujourd\'hui'}</h2>
+   <div style="display:flex;gap:8px;margin-bottom:12px"><select data-fm><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>${fcAll?'<button class="ghost" data-fcall>Mode normal</button>':''}</div>
+   ${cur?`<p class="m" style="color:var(--mute);margin:0 0 8px;display:flex;justify-content:space-between"><span>${esc(cur.module)} · reste ${deck.length}</span>${dots(cur.box||1)}</p>
+    <div class="flash ${fcBack?'back':''}" data-flip>${esc(fcBack?cur.r:cur.q)}</div>
+    ${fcBack?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><button data-grade="0" style="background:var(--bad)">Raté</button><button data-grade="1" style="background:var(--warn)">Moyen</button><button data-grade="2">Facile</button></div>`
+    :'<p class="m" style="color:var(--mute);text-align:center;margin:0">Réfléchis, puis touche la carte pour voir la réponse</p>'}`
+   :`<div class="flash" style="cursor:default">Rien à réviser aujourd'hui 🎉${next?`<br><small style="color:var(--mute);font-size:14px">Prochaine carte : ${fmtD(next)}</small>`:''}</div>${cards.length?'<button class="ghost" data-fcall style="width:100%">Réviser quand même</button>':''}`}
+   <p class="m" style="color:var(--mute);font-size:13px;margin:14px 0 0">${cards.length} carte${cards.length>1?'s':''} · ${mast} maîtrisée${mast>1?'s':''}. Raté → la carte revient tout de suite. Facile → elle monte d'un niveau et revient plus tard (1, 2, 4, 8 puis 16 jours).</p></div>
+   <div class="card"><h2>Nouvelle carte</h2><form class="f" data-f="cards" style="grid-template-columns:1fr"><input name="module" placeholder="Module" value="${esc(fcMod)}" required><textarea name="q" rows="2" placeholder="Question" required></textarea><textarea name="r" rows="2" placeholder="Réponse" required></textarea><button>Ajouter la carte</button></form>
+   ${cards.slice(-6).reverse().map(c=>`<div class="row"><span class="t">${esc(c.q)}<div class="m">${esc(c.module)}</div></span>${dots(c.box||1)}<button class="x" data-del="cards" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join('')}</div></div>`}`;
 };
-V.reseau=()=>`<h1>Outils <b>réseau</b></h1><p class="sub">Calcul IP et conversions</p>
-  <div class="grid"><div class="card"><h2>Calculateur IP</h2><form class="f" data-f="ip" style="grid-template-columns:1fr auto"><input name="ip" value="192.168.1.10/24" placeholder="ex : 10.0.5.20/22" required><button>Calculer</button></form><div id="ipres"></div></div>
-  <div class="card"><h2>Conversions</h2><form class="f" data-f="conv"><input name="v" value="200" required><select name="b"><option value="10">Décimal</option><option value="2">Binaire</option><option value="16">Hexa</option></select><button>Convertir</button></form><div id="convres"></div></div></div>`;
+const gradeCard=g=>{
+  const cur=fcDeck()[0];if(!cur)return;
+  S.set('cards',S.get('cards',[]).map(c=>{if(c.id!==cur.id)return c;
+    const box=g===0?1:g===1?(c.box||1):Math.min(5,(c.box||1)+1);
+    return {...c,box,due:g===0?isoDay(new Date()):addDays(BOX_DAYS[box]),last:Date.now()}}));
+  fcBack=false;render();
+};
+
+/* ---------- Réseau : sous-onglets ---------- */
+let netTab='ip',netQ='',memoOS='linux';
+const NETTABS=[['ip','Calcul IP'],['vlsm','VLSM'],['ipv6','IPv6'],['ports','Ports'],['masques','Masques'],['memo','Mémo']];
+V.reseau=()=>{
+  const tabs=`<div class="tabs">${NETTABS.map(([k,l])=>`<button class="${netTab===k?'':'ghost'}" data-net="${k}">${l}</button>`).join('')}</div>`;
+  const body={
+   ip:()=>`<div class="grid"><div class="card"><h2>Calculateur IP</h2><form class="f" data-f="ip" style="grid-template-columns:1fr auto"><input name="ip" value="192.168.1.10/24" placeholder="ex : 10.0.5.20/22" required><button>Calculer</button></form><div id="ipres"></div></div>
+    <div class="card"><h2>Conversions</h2><form class="f" data-f="conv"><input name="v" value="200" required><select name="b"><option value="10">Décimal</option><option value="2">Binaire</option><option value="16">Hexa</option></select><button>Convertir</button></form><div id="convres"></div></div></div>`,
+   vlsm:()=>`<div class="card"><h2>Découpage VLSM</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Un sous-réseau par ligne : nom puis nombre d'hôtes. L'app range du plus gros au plus petit, comme en TD.</p>
+    <form class="f" data-f="vlsm" style="grid-template-columns:1fr"><input name="base" value="192.168.10.0/24" placeholder="Réseau de départ, ex : 192.168.10.0/24" required><textarea name="list" rows="5" required>LAN Admin 50
+LAN Profs 25
+LAN Wifi 12
+Lien R1-R2 2</textarea><button>Découper</button></form><div id="vlsmres"></div></div>`,
+   ipv6:()=>`<div class="card"><h2>Outil IPv6</h2><form class="f" data-f="ipv6" style="grid-template-columns:1fr auto"><input name="a" value="2001:db8:0:0:8:800:200c:417a/64" required><button>Analyser</button></form><div id="v6res"></div>
+    <p class="m" style="color:var(--mute);font-size:14px;margin:14px 0 0">Règles de compression : on enlève les 0 en tête de chaque groupe, et la plus longue suite de groupes à 0 devient <code>::</code> (une seule fois par adresse).</p></div>`,
+   ports:()=>`<div class="card"><h2>Ports courants</h2><input data-q placeholder="Chercher : ssh, 443, dns…" value="${esc(netQ)}" style="margin-bottom:12px"><div id="qres">${portsList()}</div></div>`,
+   masques:()=>`<div class="card"><h2>Masques de sous-réseau</h2><div class="scroll"><table class="tbl"><thead><tr><th>CIDR</th><th>Masque</th><th>Wildcard</th><th class="r">Adresses</th><th class="r">Hôtes</th></tr></thead><tbody>${Array.from({length:25},(_,i)=>i+8).map(c=>{const n=2**(32-c),m=2**32-n;return `<tr><td class="ok">/${c}</td><td>${intToIp(m)}</td><td>${intToIp(n-1)}</td><td class="r">${n.toLocaleString('fr-FR')}</td><td class="r">${(c>=31?(c===32?1:2):n-2).toLocaleString('fr-FR')}</td></tr>`}).join('')}</tbody></table></div>
+    <p class="m" style="color:var(--mute);font-size:14px;margin:12px 0 0">Le wildcard est l'inverse du masque : on s'en sert dans les ACL et la commande <code>network</code> d'OSPF.</p></div>`,
+   memo:()=>`<div class="card"><div class="tabs" style="margin-bottom:12px"><button class="${memoOS==='linux'?'':'ghost'}" data-os="linux">Linux</button><button class="${memoOS==='cisco'?'':'ghost'}" data-os="cisco">Cisco IOS</button></div><input data-q placeholder="Chercher une commande ou une action…" value="${esc(netQ)}" style="margin-bottom:12px"><div id="qres">${memoList()}</div></div>`
+  };
+  return `<h1>Outils <b>réseau</b></h1><p class="sub">Calculs, mémos et références</p>${tabs}${body[netTab]()}`;
+};
 
 /* ---------- Rendu + routage ---------- */
 const render=()=>{
@@ -220,7 +295,7 @@ const render=()=>{
   $('#view').innerHTML=V[k]();
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
   if(k==='revisions'&&revTab==='pdf')listPdf();
-  if(k==='reseau'){calcIp('192.168.1.10/24');conv('200',10)}
+  if(k==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
 };
 addEventListener('hashchange',render);
 
@@ -239,6 +314,98 @@ const calcIp=v=>{
 const conv=(v,b)=>{
   const out=$('#convres');const ok={2:/^[01]+$/,10:/^\d+$/,16:/^[0-9a-f]+$/i}[b].test(v.trim());const n=ok?parseInt(v.trim(),b):NaN;
   out.innerHTML=isNaN(n)?'<p class="ko">Valeur invalide pour cette base</p>':`<dl class="res"><dt>Décimal</dt><dd>${n}</dd><dt>Binaire</dt><dd class="ok">${n.toString(2).replace(/\B(?=(\d{4})+$)/g,' ')}</dd><dt>Hexa</dt><dd>0x${n.toString(16).toUpperCase()}</dd></dl>`;
+};
+
+/* ---------- Données : ports ---------- */
+const PORTS=[
+ [20,'TCP','FTP (données)','Transfert de fichiers, canal des données'],[21,'TCP','FTP (contrôle)','Transfert de fichiers, canal des commandes'],
+ [22,'TCP','SSH','Connexion à distance chiffrée (et SFTP/SCP)'],[23,'TCP','Telnet','Connexion à distance NON chiffrée, à éviter'],
+ [25,'TCP','SMTP','Envoi de mails entre serveurs'],[53,'UDP/TCP','DNS','Traduction nom de domaine → adresse IP'],
+ [67,'UDP','DHCP (serveur)','Attribution automatique d\'adresses IP'],[68,'UDP','DHCP (client)','Le client reçoit son adresse IP'],
+ [69,'UDP','TFTP','Transfert simple (sauvegarde de config Cisco)'],[80,'TCP','HTTP','Web non chiffré'],
+ [110,'TCP','POP3','Récupération de mails (téléchargement)'],[123,'UDP','NTP','Synchronisation de l\'heure'],
+ [143,'TCP','IMAP','Consultation de mails sur le serveur'],[161,'UDP','SNMP','Supervision des équipements réseau'],
+ [162,'UDP','SNMP Trap','Alertes envoyées par les équipements'],[179,'TCP','BGP','Routage entre opérateurs (Internet)'],
+ [389,'TCP','LDAP','Annuaire (comptes utilisateurs, Active Directory)'],[443,'TCP','HTTPS','Web chiffré (TLS)'],
+ [445,'TCP','SMB','Partage de fichiers Windows'],[465,'TCP','SMTPS','Envoi de mails chiffré'],
+ [500,'UDP','IKE','Négociation des tunnels VPN IPsec'],[514,'UDP','Syslog','Envoi des journaux vers un serveur'],
+ [520,'UDP','RIP','Protocole de routage RIP'],[587,'TCP','SMTP (soumission)','Envoi de mails par un client'],
+ [636,'TCP','LDAPS','Annuaire LDAP chiffré'],[993,'TCP','IMAPS','IMAP chiffré'],[995,'TCP','POP3S','POP3 chiffré'],
+ [1194,'UDP','OpenVPN','VPN OpenVPN (port par défaut)'],[1433,'TCP','MS SQL','Base de données Microsoft SQL Server'],
+ [1812,'UDP','RADIUS','Authentification (Wi-Fi entreprise, 802.1X)'],[3306,'TCP','MySQL','Base de données MySQL / MariaDB'],
+ [3389,'TCP','RDP','Bureau à distance Windows'],[5060,'UDP/TCP','SIP','Téléphonie sur IP (signalisation)'],
+ [5432,'TCP','PostgreSQL','Base de données PostgreSQL'],[8080,'TCP','HTTP alternatif','Web, souvent pour des proxys ou tests'],
+ [51820,'UDP','WireGuard','VPN WireGuard (port par défaut)']];
+const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const portsList=()=>{const q=norm(netQ);const l=PORTS.filter(p=>!q||norm(p.join(' ')).includes(q));
+  return l.length?`<div class="scroll"><table class="tbl"><thead><tr><th class="r">Port</th><th>Proto</th><th>Service</th><th>À quoi ça sert</th></tr></thead><tbody>${l.map(p=>`<tr><td class="r ok">${p[0]}</td><td>${p[1]}</td><td><b>${esc(p[2])}</b></td><td class="d">${esc(p[3])}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Aucun port trouvé.</p>'};
+
+/* ---------- Données : mémo de commandes ---------- */
+const MEMO={linux:[
+ ['Se déplacer',[['pwd','Affiche le dossier où tu te trouves'],['ls -la','Liste tout le contenu, fichiers cachés et droits compris'],['cd /etc','Va dans le dossier /etc (cd .. = remonter d\'un cran)'],['mkdir -p a/b/c','Crée des dossiers, y compris les parents manquants']]],
+ ['Fichiers',[['cp -r source dest','Copie un fichier ou un dossier entier'],['mv ancien nouveau','Déplace ou renomme'],['rm -r dossier','Supprime (définitivement, pas de corbeille !)'],['cat fichier','Affiche le contenu d\'un fichier'],['less fichier','Lit un long fichier page par page (q pour quitter)'],['tail -f /var/log/syslog','Suit un journal en direct'],['nano fichier','Édite un fichier (Ctrl+O sauver, Ctrl+X quitter)'],['find / -name "*.conf"','Cherche des fichiers par nom'],['grep -ri "motif" dossier','Cherche un texte dans des fichiers']]],
+ ['Droits',[['chmod 755 script.sh','Droits rwx pour le propriétaire, r-x pour les autres'],['chown user:groupe fichier','Change le propriétaire d\'un fichier'],['sudo commande','Lance une commande en administrateur (root)']]],
+ ['Réseau',[['ip a','Affiche les interfaces et leurs adresses IP'],['ip r','Affiche la table de routage (passerelle par défaut)'],['sudo ip link set eth0 up','Active une interface'],['ping -c 4 8.8.8.8','Teste la connectivité (4 paquets)'],['traceroute 8.8.8.8','Montre les routeurs traversés'],['ss -tulpn','Ports ouverts et programmes qui écoutent'],['dig google.com','Interroge le DNS (nslookup marche aussi)'],['curl -I https://site.fr','Affiche les en-têtes HTTP d\'un site'],['cat /etc/resolv.conf','Montre les serveurs DNS utilisés'],['sudo tcpdump -i eth0','Capture le trafic (Wireshark en ligne de commande)']]],
+ ['Système',[['sudo apt update && sudo apt upgrade','Met à jour la liste des paquets puis le système'],['sudo apt install paquet','Installe un logiciel'],['systemctl status ssh','État d\'un service'],['sudo systemctl restart ssh','Redémarre un service'],['journalctl -u ssh','Journaux d\'un service'],['ps aux','Liste tous les processus'],['top','Processus et ressources en direct (q pour quitter)'],['kill 1234','Arrête le processus n°1234'],['df -h','Espace disque'],['free -h','Mémoire vive utilisée'],['uname -a','Version du noyau et du système'],['sudo adduser nom','Crée un utilisateur'],['history','Historique des commandes tapées']]]],
+ cisco:[
+ ['Modes',[['enable','Passe en mode privilégié (Router#)'],['configure terminal','Entre en mode configuration globale'],['interface g0/0','Configure une interface précise'],['exit','Remonte d\'un niveau'],['end','Revient directement au mode privilégié'],['do show ip int brief','Lance un show sans quitter le mode config']]],
+ ['Configuration de base',[['hostname R1','Donne un nom à l\'équipement'],['enable secret MotDePasse','Mot de passe chiffré du mode privilégié'],['service password-encryption','Chiffre les mots de passe en clair de la config'],['banner motd #Accès réservé#','Message affiché à la connexion'],['no ip domain-lookup','Évite l\'attente quand tu tapes une commande inconnue'],['copy running-config startup-config','Sauvegarde la config (sinon perdue au redémarrage)'],['show running-config','Affiche la config en cours']]],
+ ['Interfaces',[['ip address 192.168.1.1 255.255.255.0','Donne une adresse IP à l\'interface'],['no shutdown','Allume l\'interface (éteinte par défaut sur un routeur)'],['description Vers SW1','Ajoute une description'],['show ip interface brief','Résumé : IP et état de chaque interface']]],
+ ['Accès à distance (SSH)',[['ip domain-name lab.local','Nom de domaine, nécessaire pour les clés'],['crypto key generate rsa modulus 2048','Génère les clés de chiffrement'],['username admin secret MotDePasse','Crée un compte local'],['ip ssh version 2','Force SSH version 2'],['line vty 0 4','Configure les lignes d\'accès à distance'],['transport input ssh','Autorise uniquement SSH (pas Telnet)'],['login local','Utilise les comptes locaux pour se connecter']]],
+ ['VLAN (switch)',[['vlan 10','Crée le VLAN 10'],['name ADMIN','Nomme le VLAN'],['switchport mode access','Port pour un PC (un seul VLAN)'],['switchport access vlan 10','Met le port dans le VLAN 10'],['switchport mode trunk','Port qui transporte plusieurs VLAN'],['switchport trunk allowed vlan 10,20','Limite les VLAN autorisés sur le trunk'],['show vlan brief','Liste les VLAN et leurs ports'],['show interfaces trunk','Affiche les trunks']]],
+ ['Routage',[['ip route 0.0.0.0 0.0.0.0 192.168.1.254','Route par défaut vers la passerelle'],['router ospf 1','Active OSPF (processus 1)'],['network 10.0.0.0 0.0.0.255 area 0','Annonce un réseau dans OSPF (avec un wildcard)'],['interface g0/0.10','Sous-interface pour le router-on-a-stick'],['encapsulation dot1Q 10','Associe la sous-interface au VLAN 10'],['show ip route','Affiche la table de routage']]],
+ ['DHCP',[['ip dhcp excluded-address 192.168.1.1 192.168.1.10','Adresses à ne jamais distribuer'],['ip dhcp pool LAN','Crée une plage DHCP'],['network 192.168.1.0 255.255.255.0','Réseau distribué par le pool'],['default-router 192.168.1.1','Passerelle donnée aux clients'],['dns-server 8.8.8.8','DNS donné aux clients']]],
+ ['Diagnostic',[['ping 192.168.1.2','Teste la connectivité'],['traceroute 8.8.8.8','Chemin suivi par les paquets'],['show cdp neighbors','Voisins Cisco directement connectés'],['show mac address-table','Table MAC du switch'],['show ip arp','Table ARP (IP ↔ MAC)']]]]};
+const memoList=()=>{const q=norm(netQ);
+  const out=MEMO[memoOS].map(([cat,cmds])=>{const l=cmds.filter(c=>!q||norm(c.join(' ')+' '+cat).includes(q));
+    return l.length?`<h2 style="margin-top:16px">${esc(cat)}</h2>`+l.map(([c,d])=>`<div class="row"><span class="t"><code class="cmd">${esc(c)}</code><div class="m">${esc(d)}</div></span><button class="ghost" data-copy="${esc(c)}" style="min-height:36px;padding:0 10px;font-size:14px">Copier</button></div>`).join(''):''}).join('');
+  return out||'<p class="empty">Aucune commande trouvée.</p>'};
+
+/* ---------- VLSM ---------- */
+const calcVlsm=(base,txt)=>{
+  const out=$('#vlsmres');const [a,c]=base.trim().split('/');const ip=ipToInt(a||''),cidr=+c;
+  if(ip===null||!/^\d+$/.test(c||'')||cidr>30){out.innerHTML='<p class="ko">Réseau de départ attendu : 192.168.10.0/24</p>';return}
+  const size=2**(32-cidr),net=Math.floor(ip/size)*size,end=net+size;
+  const needs=txt.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(.*?)[\s:;,=]+(\d+)$/);return m?{nom:m[1].trim()||'Sous-réseau',h:+m[2]}:null});
+  if(!needs.length||needs.some(n=>!n||n.h<1)){out.innerHTML='<p class="ko">Chaque ligne doit finir par un nombre d\'hôtes, ex : LAN Admin 50</p>';return}
+  needs.sort((x,y)=>y.h-x.h);
+  let cur=net,ok=true;
+  const rows=needs.map(n=>{const blk=Math.max(4,2**Math.ceil(Math.log2(n.h+2))),p=32-Math.log2(blk);cur=Math.ceil(cur/blk)*blk;const r={...n,blk,p,net:cur,fit:cur+blk<=end};if(!r.fit)ok=false;cur+=blk;return r});
+  const used=Math.min(cur,end)-net;
+  out.innerHTML=`<p class="${ok?'ok':'ko'}" style="margin:14px 0 8px">${ok?`✓ Tout rentre : ${used} adresses utilisées sur ${size} (${Math.round(used/size*100)} %)`:'✗ Ça ne rentre pas dans ce réseau : prends un préfixe plus grand.'}</p>
+  <div class="scroll"><table class="tbl"><thead><tr><th>Nom</th><th class="r">Demandés</th><th class="r">Dispo</th><th>Réseau</th><th>Masque</th><th>1re → dernière</th><th>Broadcast</th></tr></thead><tbody>${rows.map(r=>`<tr${r.fit?'':' class="ko"'}><td><b>${esc(r.nom)}</b></td><td class="r">${r.h}</td><td class="r">${r.blk-2}</td><td class="ok">${intToIp(r.net)}/${r.p}</td><td>${intToIp(2**32-r.blk)}</td><td>${intToIp(r.net+1)} → ${intToIp(r.net+r.blk-2)}</td><td>${intToIp(r.net+r.blk-1)}</td></tr>`).join('')}</tbody></table></div>`;
+};
+
+/* ---------- IPv6 ---------- */
+const v6parse=s=>{
+  s=s.trim().toLowerCase();let pfx=null;
+  if(s.includes('/')){const [x,p]=s.split('/');s=x;if(!/^\d+$/.test(p)||+p>128)return null;pfx=+p}
+  if(!/^[0-9a-f:]+$/.test(s))return null;const dbl=s.split('::');if(dbl.length>2)return null;
+  const L=dbl[0]?dbl[0].split(':'):[],R=dbl.length===2&&dbl[1]?dbl[1].split(':'):[];
+  if(dbl.length===1&&L.length!==8)return null;if(dbl.length===2&&L.length+R.length>7)return null;
+  const g=[...L,...Array(8-L.length-R.length).fill('0'),...R];if(g.some(x=>!/^[0-9a-f]{1,4}$/.test(x)))return null;
+  return {g:g.map(x=>parseInt(x,16)),pfx};
+};
+const v6str=g=>{ // forme compressée (RFC 5952)
+  let best=-1,len=0;for(let i=0;i<8;){if(g[i]===0){let j=i;while(j<8&&g[j]===0)j++;if(j-i>len&&j-i>=2){best=i;len=j-i}i=j}else i++}
+  const h=g.map(x=>x.toString(16));if(best<0)return h.join(':');
+  return h.slice(0,best).join(':')+'::'+h.slice(best+len).join(':');
+};
+const v6type=g=>{const a=g[0];
+  if(g.every(x=>x===0))return 'Non spécifiée (::) — « pas encore d\'adresse »';
+  if(g.slice(0,7).every(x=>x===0)&&g[7]===1)return 'Boucle locale (::1) — équivalent de 127.0.0.1';
+  if(g.slice(0,5).every(x=>x===0)&&g[5]===0xffff)return 'IPv4 mappée (::ffff:0:0/96)';
+  if(a===0x2001&&g[1]===0xdb8)return 'Documentation (2001:db8::/32) — réservée aux exemples';
+  if((a&0xffc0)===0xfe80)return 'Lien-local (fe80::/10) — ne sort jamais du réseau local';
+  if((a&0xfe00)===0xfc00)return 'Unique locale (fc00::/7) — équivalent des adresses privées';
+  if((a&0xff00)===0xff00)return 'Multicast (ff00::/8) — envoi à un groupe';
+  if((a&0xe000)===0x2000)return 'Globale unicast (2000::/3) — routable sur Internet';
+  return 'Autre / réservée'};
+const calcV6=s=>{const out=$('#v6res'),r=v6parse(s);
+  if(!r){out.innerHTML='<p class="ko">Adresse IPv6 invalide (8 groupes de 4 chiffres hexa max, un seul ::)</p>';return}
+  const full=r.g.map(x=>x.toString(16).padStart(4,'0')).join(':');
+  let net='';if(r.pfx!==null){const n=r.g.map((x,i)=>{const bits=Math.max(0,Math.min(16,r.pfx-i*16));return bits===0?0:x&(0xffff<<(16-bits)&0xffff)});net=v6str(n)+'/'+r.pfx}
+  out.innerHTML=`<dl class="res"><dt>Complète</dt><dd>${full}</dd><dt>Compressée</dt><dd class="ok">${v6str(r.g)}${r.pfx!==null?'/'+r.pfx:''}</dd><dt>Type</dt><dd>${esc(v6type(r.g))}</dd>${net?`<dt>Préfixe</dt><dd>${net}</dd><dt>Partie hôte</dt><dd>${128-r.pfx} bits</dd>`:''}</dl>`;
 };
 
 /* ---------- PDF ---------- */
@@ -265,14 +432,20 @@ document.addEventListener('submit',async e=>{
   if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
   if(k==='ip')return calcIp(d.ip);
   if(k==='conv')return conv(d.v,+d.b);
+  if(k==='vlsm')return calcVlsm(d.base,d.list);
+  if(k==='ipv6')return calcV6(d.a);
+  if(k==='seuil'){S.set('absSeuil',+d.s||0);toast('Seuil enregistré ✓');return render()}
   if(k==='sim'){const ls=S.get('notes',[]).filter(n=>n.ue===d.ue),sc=ls.reduce((a,n)=>a+ +n.coef,0),sn=ls.reduce((a,n)=>a+n.note*n.coef,0),c=+d.coef,o=+d.obj||10,need=(o*(sc+c)-sn)/c;
     $('#simres').innerHTML=`<div class="big" style="font-size:44px;margin-top:6px">${need<=0?'0':need>20?'&gt;20':fx(need)}<small> /20</small></div><p style="margin:6px 0 0" class="${need>20?'ko':'ok'}">${need<=0?'Objectif déjà atteint, même avec 0 💪':need>20?'Pas atteignable sur cette seule éval, il faudra rattraper ailleurs.':'Note minimale pour atteindre '+o+'/20 dans cette UE.'}</p>`;return}
   if(k==='pdf'){const file=f.file.files[0];if(!file)return;const p={id:uid(),module:d.module.trim(),name:file.name,size:file.size,blob:file};
     try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}toast('Guide déposé ✓');f.reset();return listPdf()}
   if(k==='notes'){d.note=+d.note;d.coef=+d.coef}
+  if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
+  if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
   d.id=uid();const l=S.get(k,[]);l.push(d);S.set(k,l);toast('Ajouté ✓');render();
 });
 document.addEventListener('click',async e=>{
+  if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
   if(t.dataset.sync!==undefined)return loadEdt(edtWeek);
   if(t.dataset.unapi!==undefined){S.set('apiUrl','');return render()}
@@ -280,12 +453,19 @@ document.addEventListener('click',async e=>{
   if(t.dataset.tog){S.set('devoirs',S.get('devoirs',[]).map(x=>x.id===t.dataset.tog?{...x,done:!x.done}:x));return render()}
   if(t.dataset.rt){revTab=t.dataset.rt;return render()}
   if(t.dataset.flip!==undefined){fcBack=!fcBack;return render()}
-  if(t.dataset.fn){const n=S.get('cards',[]).filter(c=>!fcMod||c.module===fcMod).length;fcIdx=(fcIdx+ +t.dataset.fn+n)%n;fcBack=false;return render()}
+  if(t.dataset.grade)return gradeCard(+t.dataset.grade);
+  if(t.dataset.fcall!==undefined){fcAll=!fcAll;fcBack=false;return render()}
+  if(t.dataset.nt){notesTab=t.dataset.nt;return render()}
+  if(t.dataset.net){netTab=t.dataset.net;netQ='';return render()}
+  if(t.dataset.os){memoOS=t.dataset.os;return render()}
+  if(t.dataset.just){S.set('abs',S.get('abs',[]).map(a=>a.id===t.dataset.just?{...a,justif:!a.justif}:a));return render()}
+  if(t.dataset.copy){try{await navigator.clipboard.writeText(t.dataset.copy);toast('Copié ✓')}catch(err){toast('Copie impossible ici')}return}
   if(t.dataset.open)return openPdf(t.dataset.open);
   if(t.dataset.dpdf){const id=t.dataset.dpdf;try{await tx('readwrite',s=>s.delete(id))}catch(err){memPdf.splice(memPdf.findIndex(x=>x.id===id),1)}toast('Supprimé');return listPdf()}
 });
+document.addEventListener('input',e=>{if(e.target.matches('[data-q]')){netQ=e.target.value;$('#qres').innerHTML=netTab==='ports'?portsList():memoList()}});
 document.addEventListener('change',e=>{
-  if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcIdx=0;fcBack=false;render()}
+  if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcBack=false;render()}
   if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
 });
 render();
