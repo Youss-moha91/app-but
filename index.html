@@ -71,6 +71,21 @@ input[type=checkbox]{width:22px;min-height:22px;height:22px;accent-color:var(--a
 .cmd{font:500 14px var(--mono);color:var(--acc);background:var(--bg);padding:3px 8px;border-radius:6px;display:inline-block;margin-bottom:4px;overflow-wrap:anywhere}
 code{font-family:var(--mono);color:var(--cy)}
 .tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.tabs button{flex:none}
+.tl{display:grid;position:relative}
+.tl-head{margin-bottom:6px}.tl-head span{text-align:center;font:600 12px var(--mono);color:var(--mute);text-transform:capitalize}.tl-head span.ok{color:var(--acc)}
+.tl-h{position:relative}.tl-h span{position:absolute;right:8px;transform:translateY(-50%);font:500 12px var(--mono);color:var(--mute)}
+.tl-d{position:relative;border-left:1px solid var(--line)}.tl-d i{position:absolute;left:0;right:0;border-top:1px dashed #1c2935}
+.blk{position:absolute;margin-left:3px;border-radius:9px;padding:5px 8px;background:var(--panel2);background:color-mix(in srgb,var(--c) 17%,var(--panel));border-left:4px solid var(--c);overflow:hidden;font-size:13px;line-height:1.3;display:flex;flex-direction:column;gap:1px;z-index:2}
+.blk b{font-weight:600;color:var(--ink);overflow-wrap:anywhere}.blk small{color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk em{font:600 11px var(--mono);font-style:normal;color:var(--c);position:absolute;top:5px;right:8px}.blk b{padding-right:34px}
+.edtbar button{padding:0 13px}
+.now{position:absolute;left:0;right:0;height:2px;background:var(--bad);z-index:3}.now::before{content:'';position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--bad)}
+.strip{display:flex;gap:6px;align-items:stretch;margin-bottom:14px}
+.dy{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;min-height:64px;background:var(--panel);border:1px solid var(--line);color:var(--mute);font-size:12px;font-weight:500;text-transform:capitalize;position:relative}
+.dy b{font:700 19px var(--mono);color:var(--ink)}.dy.today{border-color:var(--acc)}.dy.on{background:var(--acc);border-color:var(--acc);color:#04140f}.dy.on b{color:#04140f}
+.dy i{width:5px;height:5px;border-radius:50%;background:var(--cy);position:absolute;bottom:6px}.dy.on i{background:#04140f}
+.arr{min-width:34px;padding:0;font-size:22px}
+.tl-card{padding:16px 14px 16px 8px}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -92,19 +107,89 @@ nav a.on{box-shadow:inset 0 2px 0 var(--acc)}
 <div class="modal" id="modal"><header><b id="mtitle"></b><button class="ghost" id="mclose">Fermer</button></header><div class="pages" id="pages"></div></div>
 <div class="toast" id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 {
 /* ---------- Stockage (localStorage, avec repli en mémoire) ---------- */
 const mem={};
 const S={
   get(k,d){try{const v=localStorage.getItem('but_'+k);return v?JSON.parse(v):(mem[k]??d)}catch(e){return mem[k]??d}},
-  set(k,v){mem[k]=v;try{localStorage.setItem('but_'+k,JSON.stringify(v))}catch(e){}}
+  raw(k,v){mem[k]=v;try{v===null?localStorage.removeItem('but_'+k):localStorage.setItem('but_'+k,JSON.stringify(v))}catch(e){}},
+  // set = raw + on note l'heure de modification pour la synchro
+  set(k,v){S.raw(k,v);if(SYNC_KEYS.includes(k)){S.raw('_mod',Date.now());schedulePush()}}
 };
 /* ---------- IndexedDB pour les PDF (trop lourds pour localStorage) ---------- */
 let dbP=null;
 const db=()=>dbP||(dbP=new Promise((ok,ko)=>{try{const r=indexedDB.open('butdb',1);r.onupgradeneeded=()=>r.result.createObjectStore('pdfs',{keyPath:'id'});r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)}catch(e){ko(e)}}));
 const tx=async(mode,fn)=>{const d=await db();return new Promise((ok,ko)=>{const t=d.transaction('pdfs',mode);const r=fn(t.objectStore('pdfs'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>ko(t.error)})};
 const memPdf=[];
+/* ---------- Supabase : connexion par code + synchronisation ---------- */
+const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
+const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta']; // ce qui part dans le cloud
+let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
+const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
+const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
+// Règle simple : la version la plus récente gagne (dernière modification locale vs cloud)
+const syncNow=async()=>{
+  if(!sb||!sbUser||syncing)return;syncing=true;
+  try{
+    const {data,error}=await sb.from('user_data').select('data,updated_at').eq('user_id',sbUser.id).maybeSingle();
+    if(error)throw error;
+    const remoteT=data?Date.parse(data.updated_at):0,localT=+S.get('_mod',0);
+    if(data&&remoteT>localT){
+      for(const k of SYNC_KEYS)S.raw(k,data.data[k]??null);
+      S.raw('_mod',remoteT);syncMsg='Données récupérées du cloud';
+    }else if(!data||localT>remoteT){
+      const t=localT||Date.now();S.raw('_mod',t);
+      const {error:e2}=await sb.from('user_data').upsert({user_id:sbUser.id,data:localDoc(),updated_at:new Date(t).toISOString()});
+      if(e2)throw e2;syncMsg='Envoyé vers le cloud';
+    }else syncMsg='Déjà à jour';
+    S.raw('_sync',Date.now());
+    await uploadPendingPdfs();
+  }catch(e){syncMsg='Erreur : '+(e.message||e)}
+  syncing=false;render();
+};
+const sbInit=async()=>{
+  if(!window.supabase||SB_URL.startsWith('__'))return;
+  try{
+    sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+    const {data:{session}}=await sb.auth.getSession();sbUser=session?.user||null;
+    sb.auth.onAuthStateChange((_e,s)=>{sbUser=s?.user||null});
+    if(sbUser)syncNow();else render();
+  }catch(e){sb=null}
+};
+// Quand tu reviens sur l'app (changement d'appareil, d'onglet…), on resynchronise
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow()});
+
+// Connexion par e-mail + mot de passe (aucun e-mail envoyé : "Confirm email" est désactivé dans Supabase)
+const login=async(email,password,create)=>{
+  const {data,error}=create?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
+  if(error){toast(/invalid/i.test(error.message)?'E-mail ou mot de passe incorrect':'Erreur : '+error.message);return}
+  if(!data.session){toast('Compte créé, mais Supabase demande une confirmation par e-mail : désactive « Confirm email »');return}
+  sbUser=data.user;toast(create?'Compte créé ✓':'Connecté ✓');syncNow();
+};
+const syncCard=()=>{
+  if(!sb)return `<div class="card"><h2>Synchronisation</h2><p class="empty">${SB_URL.startsWith('__')?'Supabase pas encore configuré.':'Synchronisation indisponible ici (ouvre l\'app depuis ton site GitHub).'}</p></div>`;
+  if(!sbUser)return `<div class="card"><h2>Synchronisation ☁</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Connecte-toi pour retrouver tes notes, devoirs et guides sur iPhone et PC.</p>
+    <form class="f" data-f="login"><input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required><input name="pw" type="password" autocomplete="current-password" minlength="8" placeholder="Mot de passe (8 caractères min.)" required><button name="act" value="in">Se connecter</button><button name="act" value="up" class="ghost">Créer mon compte</button></form>
+    <p class="m" style="color:var(--mute);font-size:13px;margin:4px 0 0">Première fois : « Créer mon compte ». Ensuite : « Se connecter ».</p></div>`;
+  const last=S.get('_sync',0);
+  return `<div class="card"><h2>Synchronisation ☁</h2><div class="row"><span class="t">${esc(sbUser.email)}<div class="m">${syncing?'Synchronisation…':esc(syncMsg)||'Connecté'}${last?' · '+new Date(last).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}</div></span><button class="ghost" data-syncnow style="min-height:36px;padding:0 12px">↻</button><button class="ghost" data-logout style="min-height:36px;padding:0 12px;font-size:14px">Déconnexion</button></div></div>`;
+};
+
+/* ---------- PDF dans le cloud ---------- */
+const pdfPath=id=>`${sbUser.id}/${id}.pdf`;
+const uploadPendingPdfs=async()=>{
+  if(!sbUser)return;const meta=S.get('pdfmeta',[]);let changed=false;
+  for(const m of meta.filter(m=>!m.cloud)){
+    let p;try{p=await tx('readonly',s=>s.get(m.id))}catch(e){p=memPdf.find(x=>x.id===m.id)}
+    if(!p)continue;
+    const {error}=await sb.storage.from('guides').upload(pdfPath(m.id),p.blob,{contentType:'application/pdf',upsert:true});
+    if(!error){m.cloud=true;changed=true}
+  }
+  if(changed)S.set('pdfmeta',meta);
+};
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -163,25 +248,65 @@ V.accueil=()=>{
    <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map(c=>rowCours({...c,titre:c.titre||c.module})).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
    <div class="card"><h2>Révisions du jour</h2><div class="big" style="color:var(--cy)">${dueCount()}<small> carte${dueCount()>1?'s':''}</small></div><p style="margin:10px 0 0"><a href="#revisions" data-gofc style="color:var(--acc)">Réviser maintenant →</a></p>${absStats().nj?`<p class="m" style="color:var(--bad);margin:8px 0 0">${fh(absStats().nj)} d'absences non justifiées</p>`:''}</div>
    <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
-  </div>`;
+  </div><div style="margin-top:16px">${syncCard()}</div>`;
+};
+/* ---------- Emploi du temps façon Pronote ---------- */
+const toMin=h=>{const [a,b]=String(h).split(':');return a*60+ +b};
+const addD=(iso,n)=>{const d=new Date(iso+'T12:00');d.setDate(d.getDate()+n);return isoDay(d)};
+const mondayOf=iso=>addD(iso,-((new Date(iso+'T12:00').getDay()+6)%7));
+const COLS=['#00e5a0','#3ad7ff','#ffc24a','#ff5c7a','#b18cff','#5b8cff','#ff8a3d','#36d1b7','#f06bd2','#9be15d'];
+const colorOf=k=>{let h=0;for(const ch of String(k))h=(h*31+ch.charCodeAt(0))>>>0;return COLS[h%COLS.length]};
+const T0=8*60,T1=18*60+30,K=1.15; // la grille va de 8h à 18h30, 1,15 px par minute
+// Tous les cours d'une date : ceux de Formadep + ceux ajoutés à la main (répétés chaque semaine)
+const coursDu=iso=>{
+  const fm=Object.values(S.get('edtf',{})).flatMap(w=>w.cours||[]).filter(c=>c.date===iso);
+  const dj=new Date(iso+'T12:00').getDay();
+  const man=S.get('edt',[]).filter(c=>+c.jour===dj).map(c=>({...c,titre:c.module,code:c.module}));
+  const l=[...fm,...man].sort((a,b)=>toMin(a.debut)-toMin(b.debut));
+  // Si deux cours se chevauchent, on les met côte à côte (des "couloirs")
+  let grp=[],end=0;const close=()=>{const n=Math.max(1,...grp.map(c=>c._l+1));grp.forEach(c=>c._n=n);grp=[]};
+  for(const c of l){if(toMin(c.debut)>=end)close();const used=grp.filter(g=>toMin(g.fin)>toMin(c.debut)).map(g=>g._l);let k=0;while(used.includes(k))k++;c._l=k;grp.push(c);end=Math.max(end,toMin(c.fin))}
+  close();return l;
+};
+let edtDay='',edtMode=(typeof innerWidth!=='undefined'&&innerWidth>=900)?'semaine':'jour';
+const firstDay=()=>{let d=isoDay(new Date()),w=new Date(d+'T12:00').getDay();return w===6?addD(d,2):w===0?addD(d,1):d};
+// Si la semaine affichée n'est pas encore chargée, on la demande au Worker
+const ensureWeek=iso=>{const mon=mondayOf(iso),all=Object.values(S.get('edtf',{}));
+  if(all.some(w=>w.lundi===mon))return;const sem=all.flatMap(w=>w.semaines||[]).find(s=>s.lundi===mon);
+  if(sem&&!loading)loadEdt(sem.num)};
+const timeline=(days,compact)=>{
+  const hours=[];for(let h=8;h<=18;h++)hours.push(h);
+  const now=new Date(),nIso=isoDay(now),nMin=now.getHours()*60+now.getMinutes(),H=(T1-T0)*K;
+  const cols=`grid-template-columns:40px repeat(${days.length},minmax(0,1fr))`;
+  return `${days.length>1?`<div class="tl tl-head" style="${cols}"><span></span>${days.map(d=>`<span class="${d===nIso?'ok':''}">${new Date(d+'T12:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'})}</span>`).join('')}</div>`:''}
+  <div class="tl" style="${cols}"><div class="tl-h" style="height:${H}px">${hours.map(h=>`<span style="top:${(h*60-T0)*K}px">${h}h</span>`).join('')}</div>
+  ${days.map(d=>{const cs=coursDu(d);return `<div class="tl-d" style="height:${H}px">${hours.map(h=>`<i style="top:${(h*60-T0)*K}px"></i>`).join('')}
+   ${cs.map(c=>{const a=Math.max(T0,toMin(c.debut)),b=Math.min(T1,toMin(c.fin)),col=colorOf(c.code||c.titre),long=b-a>=75;
+     return `<div class="blk" style="top:${(a-T0)*K}px;height:${(b-a)*K-3}px;left:${c._l/c._n*100}%;width:calc(${100/c._n}% - 4px);--c:${col}">${c.type&&!compact?`<em>${esc(c.type)}</em>`:''}<b>${esc(compact?(c.code||c.titre):c.titre)}</b><small>${esc(c.debut)}–${esc(c.fin)}</small>${c.salle&&(long||!compact)?`<small>${esc(c.salle)}</small>`:''}${c.prof&&long&&!compact?`<small>${esc(c.prof)}</small>`:''}</div>`}).join('')}
+   ${d===nIso&&nMin>T0&&nMin<T1?`<div class="now" style="top:${(nMin-T0)*K}px"></div>`:''}
+   ${!cs.length&&!compact?'<p class="empty" style="position:absolute;top:40%;width:100%;text-align:center">Pas de cours 🎉</p>':''}</div>`}).join('')}</div>`;
 };
 V.edt=()=>{
-  const edt=S.get('edt',[]),api=S.get('apiUrl',API0),all=S.get('edtf',{});
-  const wk=edtWeek||S.get('edtCur','')||Object.keys(all)[0],d=all[wk];
-  const fmd=!api?`<div class="card" style="margin-bottom:16px"><h2>Connecter Formadep</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Colle l'adresse de ton Worker Cloudflare (ex : https://edt-but.toncompte.workers.dev)</p><form class="f" data-f="api" style="grid-template-columns:1fr auto"><input name="url" type="url" placeholder="https://…workers.dev" required><button>Connecter</button></form></div>`
-  :`<div class="card" style="margin-bottom:16px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><h2 style="margin:0;flex:1">Formadep · RT1C1</h2>
-   ${d?`<select data-wk style="width:auto">${d.semaines.map(s=>`<option value="${esc(s.num)}" ${s.num===wk?'selected':''}>Semaine ${esc(s.num)} · ${fmtD(s.lundi)}</option>`).join('')}</select>`:''}
-   <button class="ghost" data-sync>${loading?'Chargement…':'Actualiser'}</button><button class="x" data-unapi aria-label="Déconnecter">×</button></div>
-   ${d?[...new Set(d.cours.map(c=>c.date))].map(dt=>`<h2 style="margin-top:16px">${fmtD(dt)}</h2>`+d.cours.filter(c=>c.date===dt).map(rowCours).join('')).join('')||'<p class="empty">Aucun cours cette semaine.</p>':'<p class="empty">Appuie sur Actualiser pour charger ta semaine.</p>'}
-   ${d?`<p class="m" style="color:var(--mute);font-size:13px;margin:12px 0 0">Mis à jour ${new Date(d.maj).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</p>`:''}</div>`;
-  return `<h1>Emploi du <b>temps</b></h1><p class="sub">Synchronisé avec Formadep</p>${fmd}
+  if(!edtDay)edtDay=firstDay();
+  const edt=S.get('edt',[]),all=S.get('edtf',{}),mon=mondayOf(edtDay),week=[0,1,2,3,4].map(i=>addD(mon,i));
+  const wk=Object.values(all).find(w=>w.lundi===mon),nIso=isoDay(new Date());
+  const last=Object.values(all).map(w=>w.maj).sort().pop();
+  const titre=new Date(mon+'T12:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+  return `<h1>Emploi du <b>temps</b></h1><p class="sub">RT1-C1 · semaine du ${titre}${wk?` (S${esc(wk.semaine)})`:''}</p>
+  <div class="tabs edtbar" style="align-items:center"><button class="${edtMode==='jour'?'':'ghost'}" data-mode="jour">Jour</button><button class="${edtMode==='semaine'?'':'ghost'}" data-mode="semaine">Semaine</button><span style="flex:1"></span><button class="ghost" data-today>Aujourd'hui</button><button class="ghost" data-sync>${loading?'…':'↻'}</button></div>
+  <div class="strip"><button class="ghost arr" data-shift="-7" aria-label="Semaine précédente">‹</button>
+   ${week.map(d=>{const dt=new Date(d+'T12:00');return `<button class="dy ${d===edtDay&&edtMode==='jour'?'on':''} ${d===nIso?'today':''}" data-day="${d}">${dt.toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','')}<b>${dt.getDate()}</b>${coursDu(d).length?'<i></i>':''}</button>`}).join('')}
+   <button class="ghost arr" data-shift="7" aria-label="Semaine suivante">›</button></div>
+  <div class="card tl-card" id="tlcard">${edtMode==='jour'?`<h2 style="margin:0 0 12px">${new Date(edtDay+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</h2>`+timeline([edtDay],false):timeline(week,innerWidth<700)}
+   ${!wk&&!loading?'<p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">Semaine pas encore chargée depuis Formadep (ou vacances).</p>':''}</div>
+  <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 18px">${edtMode==='jour'?'Glisse à gauche ou à droite pour changer de jour. ':''}${last?'Formadep mis à jour '+new Date(last).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''}</p>
   <details class="card"><summary style="cursor:pointer;font-family:var(--mono);font-weight:700">Cours ajoutés à la main</summary><div style="margin-top:14px"><form class="f" data-f="edt">
    <select name="jour">${[1,2,3,4,5,6].map(j=>`<option value="${j}">${JOURS[j]}</option>`).join('')}</select>
    <input name="debut" type="time" value="08:30" required><input name="fin" type="time" value="10:00" required>
    <input name="module" placeholder="Module (ex : R1.06)" required><input name="salle" placeholder="Salle">
    <select name="type"><option>CM</option><option>TD</option><option>TP</option><option>SAÉ</option></select>
    <button>Ajouter</button></form>
-  ${[1,2,3,4,5,6].map(j=>{const l=edt.filter(c=>+c.jour===j).sort((a,b)=>a.debut.localeCompare(b.debut));return l.length?`<h2 style="margin-top:18px">${JOURS[j]}</h2>`+l.map(c=>`<div class="row"><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.module)}<div class="m">${esc(c.salle)}</div></span><span class="tag cy">${esc(c.type)}</span><button class="x" data-del="edt" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join(''):''}).join('')||'<p class="empty">Aucun cours pour l\'instant.</p>'}</div></details>`;
+  ${edt.map(c=>`<div class="row"><span class="time">${JOURS[c.jour].slice(0,3)} ${esc(c.debut)}</span><span class="t">${esc(c.module)}<div class="m">${esc(c.salle)}</div></span><span class="tag cy">${esc(c.type)}</span><button class="x" data-del="edt" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucun cours ajouté à la main.</p>'}</div></details>`;
 };
 V.devoirs=()=>{
   const dv=S.get('devoirs',[]).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));
@@ -295,9 +420,16 @@ const render=()=>{
   $('#view').innerHTML=V[k]();
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
   if(k==='revisions'&&revTab==='pdf')listPdf();
+  if(k==='edt')ensureWeek(edtDay||firstDay());
   if(k==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
 };
 addEventListener('hashchange',render);
+/* Glisser le doigt pour changer de jour (comme sur Pronote) */
+{let sx=0,sy=0;
+ document.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+ document.addEventListener('touchend',e=>{if(location.hash!=='#edt'||edtMode!=='jour'||!e.target.closest('#tlcard'))return;
+  const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)<60||Math.abs(dy)>50)return;
+  let d=addD(edtDay,dx<0?1:-1);while([0,6].includes(new Date(d+'T12:00').getDay()))d=addD(d,dx<0?1:-1);edtDay=d;render()},{passive:true});}
 
 /* ---------- Outils réseau ---------- */
 const ipToInt=s=>{const p=s.split('.');if(p.length!==4||p.some(x=>!/^\d+$/.test(x)||+x>255))return null;return p.reduce((a,x)=>a*256+ +x,0)};
@@ -411,13 +543,20 @@ const calcV6=s=>{const out=$('#v6res'),r=v6parse(s);
 /* ---------- PDF ---------- */
 const listPdf=async()=>{
   let l;try{l=await tx('readonly',s=>s.getAll())}catch(e){l=memPdf}
+  // Les PDF déposés avant la synchro n'ont pas de fiche : on la crée
+  const meta=S.get('pdfmeta',[]);let add=l.filter(p=>!meta.some(m=>m.id===p.id)).map(p=>({id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}));
+  if(add.length){S.set('pdfmeta',[...meta,...add]);if(sbUser)uploadPendingPdfs()}
+  const all=S.get('pdfmeta',[]),here=new Set(l.map(p=>p.id));
   const el=$('#pdflist');if(!el)return;
-  const mods=[...new Set(l.map(p=>p.module))].sort();
-  el.innerHTML=mods.map(m=>`<h2 style="margin-top:14px">${esc(m)}</h2>`+l.filter(p=>p.module===m).map(p=>`<div class="row"><span class="t">${esc(p.name)}<div class="m">${(p.size/1048576).toFixed(1).replace('.',',')} Mo</div></span><button class="ghost" data-open="${esc(p.id)}">Ouvrir</button><button class="x" data-dpdf="${esc(p.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Dépose ton premier guide.</p>';
+  const mods=[...new Set(all.map(p=>p.module))].sort();
+  el.innerHTML=mods.map(m=>`<h2 style="margin-top:14px">${esc(m)}</h2>`+all.filter(p=>p.module===m).map(p=>`<div class="row"><span class="t">${esc(p.name)}<div class="m">${(p.size/1048576).toFixed(1).replace('.',',')} Mo${p.cloud?' · ☁ dans le cloud':''}${here.has(p.id)?'':' · à télécharger'}</div></span><button class="ghost" data-open="${esc(p.id)}">Ouvrir</button><button class="x" data-dpdf="${esc(p.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Dépose ton premier guide.</p>';
 };
 const openPdf=async id=>{
   let p;try{p=await tx('readonly',s=>s.get(id))}catch(e){p=memPdf.find(x=>x.id===id)}
-  if(!p)return;$('#mtitle').textContent=p.name;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
+  if(!p&&sbUser){const m=S.get('pdfmeta',[]).find(x=>x.id===id);toast('Téléchargement…');
+    const {data,error}=await sb.storage.from('guides').download(pdfPath(id));
+    if(!error&&m){p={...m,blob:data};try{await tx('readwrite',s=>s.put(p))}catch(e){memPdf.push(p)}}}
+  if(!p){toast('Connecte-toi pour récupérer ce guide');return}$('#mtitle').textContent=p.name;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
   try{
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const doc=await pdfjsLib.getDocument({data:await p.blob.arrayBuffer()}).promise;box.innerHTML='';
@@ -429,6 +568,7 @@ $('#mclose').onclick=()=>{$('#modal').classList.remove('on');$('#pages').innerHT
 /* ---------- Événements ---------- */
 document.addEventListener('submit',async e=>{
   const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
+  if(k==='login')return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up');
   if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
   if(k==='ip')return calcIp(d.ip);
   if(k==='conv')return conv(d.v,+d.b);
@@ -438,7 +578,9 @@ document.addEventListener('submit',async e=>{
   if(k==='sim'){const ls=S.get('notes',[]).filter(n=>n.ue===d.ue),sc=ls.reduce((a,n)=>a+ +n.coef,0),sn=ls.reduce((a,n)=>a+n.note*n.coef,0),c=+d.coef,o=+d.obj||10,need=(o*(sc+c)-sn)/c;
     $('#simres').innerHTML=`<div class="big" style="font-size:44px;margin-top:6px">${need<=0?'0':need>20?'&gt;20':fx(need)}<small> /20</small></div><p style="margin:6px 0 0" class="${need>20?'ko':'ok'}">${need<=0?'Objectif déjà atteint, même avec 0 💪':need>20?'Pas atteignable sur cette seule éval, il faudra rattraper ailleurs.':'Note minimale pour atteindre '+o+'/20 dans cette UE.'}</p>`;return}
   if(k==='pdf'){const file=f.file.files[0];if(!file)return;const p={id:uid(),module:d.module.trim(),name:file.name,size:file.size,blob:file};
-    try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}toast('Guide déposé ✓');f.reset();return listPdf()}
+    try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}
+    S.set('pdfmeta',[...S.get('pdfmeta',[]),{id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}]);
+    toast('Guide déposé ✓');f.reset();await uploadPendingPdfs();return listPdf()}
   if(k==='notes'){d.note=+d.note;d.coef=+d.coef}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
@@ -447,7 +589,13 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
-  if(t.dataset.sync!==undefined)return loadEdt(edtWeek);
+  if(t.dataset.syncnow!==undefined)return syncNow();
+  if(t.dataset.logout!==undefined){await sb.auth.signOut();sbUser=null;syncMsg='';toast('Déconnecté');return render()}
+  if(t.dataset.sync!==undefined){const w=Object.values(S.get('edtf',{})).flatMap(w=>w.semaines||[]).find(s=>s.lundi===mondayOf(edtDay||firstDay()));return loadEdt(w?w.num:'')}
+  if(t.dataset.mode){edtMode=t.dataset.mode;return render()}
+  if(t.dataset.day){edtDay=t.dataset.day;edtMode='jour';return render()}
+  if(t.dataset.shift){edtDay=addD(edtDay||firstDay(),+t.dataset.shift);return render()}
+  if(t.dataset.today!==undefined){edtDay=firstDay();return render()}
   if(t.dataset.unapi!==undefined){S.set('apiUrl','');return render()}
   if(t.dataset.del){const k=t.dataset.del;S.set(k,S.get(k,[]).filter(x=>x.id!==t.dataset.id));toast('Supprimé');return render()}
   if(t.dataset.tog){S.set('devoirs',S.get('devoirs',[]).map(x=>x.id===t.dataset.tog?{...x,done:!x.done}:x));return render()}
@@ -461,7 +609,9 @@ document.addEventListener('click',async e=>{
   if(t.dataset.just){S.set('abs',S.get('abs',[]).map(a=>a.id===t.dataset.just?{...a,justif:!a.justif}:a));return render()}
   if(t.dataset.copy){try{await navigator.clipboard.writeText(t.dataset.copy);toast('Copié ✓')}catch(err){toast('Copie impossible ici')}return}
   if(t.dataset.open)return openPdf(t.dataset.open);
-  if(t.dataset.dpdf){const id=t.dataset.dpdf;try{await tx('readwrite',s=>s.delete(id))}catch(err){memPdf.splice(memPdf.findIndex(x=>x.id===id),1)}toast('Supprimé');return listPdf()}
+  if(t.dataset.dpdf){const id=t.dataset.dpdf;try{await tx('readwrite',s=>s.delete(id))}catch(err){const i=memPdf.findIndex(x=>x.id===id);if(i>=0)memPdf.splice(i,1)}
+    const m=S.get('pdfmeta',[]).find(x=>x.id===id);if(m?.cloud&&sbUser)sb.storage.from('guides').remove([pdfPath(id)]);
+    S.set('pdfmeta',S.get('pdfmeta',[]).filter(x=>x.id!==id));toast('Supprimé');return listPdf()}
 });
 document.addEventListener('input',e=>{if(e.target.matches('[data-q]')){netQ=e.target.value;$('#qres').innerHTML=netTab==='ports'?portsList():memoList()}});
 document.addEventListener('change',e=>{
@@ -469,6 +619,7 @@ document.addEventListener('change',e=>{
   if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
 });
 render();
+sbInit();
 /* Au démarrage : on rafraîchit la semaine en cours si les données ont plus de 6 h */
 {const cur=S.get('edtf',{})[S.get('edtCur','')];if(S.get('apiUrl',API0)&&(!cur||Date.now()-new Date(cur.maj)>6*36e5))loadEdt()}
 }
