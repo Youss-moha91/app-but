@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App BUT R&T</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22bg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%2310302b%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b0f14%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22ln%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233ad7ff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2300e5a0%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22url%28%23bg%29%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2210%22%20width%3D%22492%22%20height%3D%22492%22%20rx%3D%22104%22%20fill%3D%22none%22%20stroke%3D%22%2322303e%22%20stroke-width%3D%224%22/%3E%3Cpath%20d%3D%22M150%20160%20L290%20256%20L150%20352%22%20fill%3D%22none%22%20stroke%3D%22url%28%23ln%29%22%20stroke-width%3D%2234%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%22150%22%20cy%3D%22160%22%20r%3D%2234%22%20fill%3D%22%230b0f14%22%20stroke%3D%22%233ad7ff%22%20stroke-width%3D%2216%22/%3E%3Ccircle%20cx%3D%22290%22%20cy%3D%22256%22%20r%3D%2238%22%20fill%3D%22%230b0f14%22%20stroke%3D%22%2300e5a0%22%20stroke-width%3D%2218%22/%3E%3Ccircle%20cx%3D%22150%22%20cy%3D%22352%22%20r%3D%2234%22%20fill%3D%22%230b0f14%22%20stroke%3D%22%2300e5a0%22%20stroke-width%3D%2216%22/%3E%3Crect%20x%3D%22318%22%20y%3D%22330%22%20width%3D%2296%22%20height%3D%2230%22%20rx%3D%2215%22%20fill%3D%22%2300e5a0%22/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<meta name="apple-mobile-web-app-title" content="BUT R&amp;T">
+<meta name="theme-color" content="#0b0f14">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE : console perso d'étudiant R&T, nette et motivante
+   IDEA : un terminal de supervision réseau, chaque section est un "module" du système
+   PICTURE : l'outil lui-même (cartes de données vivantes, compte à rebours en grand)
+   COLOUR and TYPE : nuit #0b0f14, panneaux #121a23, accent vert terminal #00e5a0, cyan #3ad7ff, alerte #ff5c7a ; JetBrains Mono pour titres/chiffres, Inter pour le texte
+   LAYOUT : barre latérale sur PC, barre d'onglets en bas sur iPhone ; une colonne de cartes */
+:root{color-scheme:dark;--bg:#0b0f14;--panel:#121a23;--panel2:#17212c;--line:#22303e;--ink:#dbe6ee;--mute:#8596a6;--acc:#00e5a0;--cy:#3ad7ff;--bad:#ff5c7a;--warn:#ffc24a;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#0f2a26 0,transparent 60%),var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip;min-height:100vh}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+nav{position:sticky;top:0;height:100vh;padding:24px 14px;border-right:1px solid var(--line);background:#0d131a;display:flex;flex-direction:column;gap:4px}
+.brand{font:700 18px var(--mono);color:var(--acc);padding:0 10px 20px}.brand span{color:var(--mute)}
+nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--mute);text-decoration:none;font-weight:500;min-height:44px}
+nav a svg{width:20px;height:20px;flex:none}
+nav a:hover{background:var(--panel);color:var(--ink)}
+nav a.on{background:var(--panel2);color:var(--acc);box-shadow:inset 2px 0 0 var(--acc)}
+main{padding:clamp(20px,4vw,44px) max(4vw,16px) 110px;max-width:1100px;width:100%}
+h1{font:700 clamp(26px,4vw,38px)/1.1 var(--mono);margin:0 0 6px;text-wrap:balance}
+h1 b{color:var(--acc)}
+.sub{color:var(--mute);margin:0 0 26px}
+h2{font:700 17px var(--mono);margin:0 0 14px;color:var(--ink)}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+.big{font:700 clamp(40px,7vw,64px)/1 var(--mono);color:var(--acc)}
+.big small{font-size:18px;color:var(--mute)}
+.row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .t{flex:1}.row .m{color:var(--mute);font-size:14px}
+.tag{font:500 12px var(--mono);padding:3px 8px;border-radius:6px;background:#0f2a26;color:var(--acc);white-space:nowrap}
+.tag.ds{background:#3a1520;color:var(--bad)}.tag.cy{background:#0e2633;color:var(--cy)}
+.time{font:700 15px var(--mono);color:var(--cy);white-space:nowrap;width:108px}
+form.f{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));margin-bottom:18px}
+input,select,textarea,button{font:inherit;font-size:16px;min-height:44px;border-radius:10px}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:9px 12px;width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{background:var(--acc);color:#04140f;border:0;font-weight:600;padding:0 16px;cursor:pointer}
+button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line)}
+button.x{background:transparent;color:var(--mute);min-height:36px;width:36px;padding:0;font-size:20px}
+button.x:hover{color:var(--bad)}
+.empty{color:var(--mute);font-size:15px;padding:8px 0}
+.bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--acc)}
+.ok{color:var(--acc)}.ko{color:var(--bad)}
+.done .t{text-decoration:line-through;color:var(--mute)}
+input[type=checkbox]{width:22px;min-height:22px;height:22px;accent-color:var(--acc);flex:none}
+.tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.res{font:500 15px var(--mono);display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin-top:12px}
+.res dt{color:var(--mute)}.res dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+.flash{min-height:180px;display:grid;place-items:center;text-align:center;font-size:19px;cursor:pointer;background:var(--panel2);border:1px dashed var(--line);border-radius:14px;padding:24px;margin-bottom:12px}
+.flash.back{border-color:var(--acc);color:var(--acc)}
+.modal{position:fixed;inset:0;background:#000c;display:none;flex-direction:column;z-index:50}
+.modal.on{display:flex}
+.modal header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.modal header b{flex:1;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pages{overflow:auto;flex:1;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.pages canvas{max-width:100%;height:auto!important;border-radius:6px;box-shadow:0 4px 30px #0008}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--acc);color:var(--ink);padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
+.toast.on{opacity:1}
+.note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
+@media(max-width:760px){
+.app{grid-template-columns:1fr}
+nav{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;padding:6px 4px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);z-index:40;justify-content:space-around;gap:0}
+.brand{display:none}
+nav a{flex-direction:column;gap:3px;font-size:11px;padding:6px 2px;flex:1;justify-content:center}
+nav a.on{box-shadow:inset 0 2px 0 var(--acc)}
+}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<nav id="nav"></nav>
+<main id="view"></main>
+</div>
+<div class="modal" id="modal"><header><b id="mtitle"></b><button class="ghost" id="mclose">Fermer</button></header><div class="pages" id="pages"></div></div>
+<div class="toast" id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+{
+/* ---------- Stockage (localStorage, avec repli en mémoire) ---------- */
+const mem={};
+const S={
+  get(k,d){try{const v=localStorage.getItem('but_'+k);return v?JSON.parse(v):(mem[k]??d)}catch(e){return mem[k]??d}},
+  set(k,v){mem[k]=v;try{localStorage.setItem('but_'+k,JSON.stringify(v))}catch(e){}}
+};
+/* ---------- IndexedDB pour les PDF (trop lourds pour localStorage) ---------- */
+let dbP=null;
+const db=()=>dbP||(dbP=new Promise((ok,ko)=>{try{const r=indexedDB.open('butdb',1);r.onupgradeneeded=()=>r.result.createObjectStore('pdfs',{keyPath:'id'});r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)}catch(e){ko(e)}}));
+const tx=async(mode,fn)=>{const d=await db();return new Promise((ok,ko)=>{const t=d.transaction('pdfs',mode);const r=fn(t.objectStore('pdfs'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>ko(t.error)})};
+const memPdf=[];
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const $=s=>document.querySelector(s);
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),1800)};
+const UES={UE1:'UE1 · Administrer',UE2:'UE2 · Connecter',UE3:'UE3 · Programmer'};
+const JOURS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const daysTo=s=>Math.round((new Date(s+'T00:00')-today())/864e5);
+const fmtD=s=>new Date(s+'T00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+
+/* ---------- Navigation ---------- */
+const ic={
+ accueil:'<path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',
+ edt:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+ notes:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ devoirs:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/>',
+ revisions:'<path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zm0 0a2 2 0 002 2h13"/>',
+ reseau:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>'
+};
+const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['devoirs','Devoirs'],['revisions','Révisions'],['reseau','Réseau']];
+$('#nav').innerHTML='<div class="brand"><svg width="30" height="30" style="vertical-align:-8px;margin-right:8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10302b"/><stop offset="1" stop-color="#0b0f14"/></linearGradient><linearGradient id="ln2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ad7ff"/><stop offset="1" stop-color="#00e5a0"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bg2)"/><rect x="10" y="10" width="492" height="492" rx="104" fill="none" stroke="#22303e" stroke-width="4"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="url(#ln2)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>BUT<span>_R&amp;T</span></div>'+NAV.map(([k,l])=>`<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[k]}</svg>${l}</a>`).join('');
+
+/* ---------- Calculs de moyennes ---------- */
+const avg=list=>{const c=list.reduce((a,n)=>a+ +n.coef,0);return c?list.reduce((a,n)=>a+n.note*n.coef,0)/c:null};
+const ueAvgs=()=>{const notes=S.get('notes',[]);return Object.keys(UES).map(u=>({u,m:avg(notes.filter(n=>n.ue===u))}))};
+const genAvg=()=>{const v=ueAvgs().filter(x=>x.m!==null);return v.length?v.reduce((a,x)=>a+x.m,0)/v.length:null};
+const fx=n=>n===null?'—':n.toFixed(2).replace('.',',');
+
+/* ---------- Vues ---------- */
+const V={};
+const pad=n=>String(n).padStart(2,'0');
+const isoDay=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const rowCours=c=>`<div class="row"><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.titre)}<div class="m">${esc([c.salle,c.prof].filter(Boolean).join(' · '))}</div></span><span class="tag ${c.type==='Info'?'':'cy'}">${esc(c.type||'—')}</span></div>`;
+const API0='https://edt-but.myf-youssouf91.workers.dev';
+let edtWeek='',loading=false;
+const loadEdt=async(num='')=>{
+  const api=S.get('apiUrl',API0);if(!api||loading)return;loading=true;if(location.hash==='#edt')render();
+  try{const r=await fetch(api.replace(/\/+$/,'')+'/api/edt'+(num?'?semaine='+encodeURIComponent(num):''));const d=await r.json();if(!r.ok||d.erreur)throw new Error(d.erreur||r.status);
+    const all=S.get('edtf',{});all[d.semaine]=d;S.set('edtf',all);if(!num)S.set('edtCur',d.semaine);edtWeek=d.semaine;toast('Emploi du temps à jour ✓')}
+  catch(e){toast('Formadep injoignable : '+(e.message||e))}
+  loading=false;render();
+};
+V.accueil=()=>{
+  const d=new Date(),dj=d.getDay(),today=isoDay(d);
+  const fm=Object.values(S.get('edtf',{})).flatMap(w=>w.cours).filter(c=>c.date===today);
+  const edt=fm.length?fm:S.get('edt',[]).filter(c=>+c.jour===dj).sort((a,b)=>a.debut.localeCompare(b.debut));
+  const dv=S.get('devoirs',[]);
+  const ds=dv.filter(x=>x.type==='DS'&&!x.done&&daysTo(x.date)>=0).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const urg=dv.filter(x=>!x.done&&x.type!=='DS').sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
+  const g=genAvg();
+  return `<h1>Salut <b>Youssouf</b></h1><p class="sub">${JOURS[dj]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} · RT1-C1</p>
+  <div class="grid">
+   <div class="card"><h2>Prochain DS</h2>${ds?`<div class="big">J-${daysTo(ds.date)}</div><p style="margin:10px 0 0">${esc(ds.titre)} <span class="tag ds">${esc(ds.module)}</span></p><p class="m" style="color:var(--mute);margin:4px 0 0">${fmtD(ds.date)}</p>`:'<p class="empty">Aucun DS prévu. Ajoute-le dans Devoirs.</p>'}</div>
+   <div class="card"><h2>Moyenne générale</h2><div class="big ${g!==null&&g<10?'ko':''}">${fx(g)}<small> /20</small></div>${ueAvgs().map(x=>`<div class="row"><span class="t">${UES[x.u]}</span><b class="${x.m===null?'':x.m>=10?'ok':'ko'}" style="font-family:var(--mono)">${fx(x.m)}</b></div>`).join('')}</div>
+   <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map(c=>rowCours({...c,titre:c.titre||c.module})).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
+   <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
+  </div>`;
+};
+V.edt=()=>{
+  const edt=S.get('edt',[]),api=S.get('apiUrl',API0),all=S.get('edtf',{});
+  const wk=edtWeek||S.get('edtCur','')||Object.keys(all)[0],d=all[wk];
+  const fmd=!api?`<div class="card" style="margin-bottom:16px"><h2>Connecter Formadep</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Colle l'adresse de ton Worker Cloudflare (ex : https://edt-but.toncompte.workers.dev)</p><form class="f" data-f="api" style="grid-template-columns:1fr auto"><input name="url" type="url" placeholder="https://…workers.dev" required><button>Connecter</button></form></div>`
+  :`<div class="card" style="margin-bottom:16px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><h2 style="margin:0;flex:1">Formadep · RT1C1</h2>
+   ${d?`<select data-wk style="width:auto">${d.semaines.map(s=>`<option value="${esc(s.num)}" ${s.num===wk?'selected':''}>Semaine ${esc(s.num)} · ${fmtD(s.lundi)}</option>`).join('')}</select>`:''}
+   <button class="ghost" data-sync>${loading?'Chargement…':'Actualiser'}</button><button class="x" data-unapi aria-label="Déconnecter">×</button></div>
+   ${d?[...new Set(d.cours.map(c=>c.date))].map(dt=>`<h2 style="margin-top:16px">${fmtD(dt)}</h2>`+d.cours.filter(c=>c.date===dt).map(rowCours).join('')).join('')||'<p class="empty">Aucun cours cette semaine.</p>':'<p class="empty">Appuie sur Actualiser pour charger ta semaine.</p>'}
+   ${d?`<p class="m" style="color:var(--mute);font-size:13px;margin:12px 0 0">Mis à jour ${new Date(d.maj).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</p>`:''}</div>`;
+  return `<h1>Emploi du <b>temps</b></h1><p class="sub">Synchronisé avec Formadep</p>${fmd}
+  <details class="card"><summary style="cursor:pointer;font-family:var(--mono);font-weight:700">Cours ajoutés à la main</summary><div style="margin-top:14px"><form class="f" data-f="edt">
+   <select name="jour">${[1,2,3,4,5,6].map(j=>`<option value="${j}">${JOURS[j]}</option>`).join('')}</select>
+   <input name="debut" type="time" value="08:30" required><input name="fin" type="time" value="10:00" required>
+   <input name="module" placeholder="Module (ex : R1.06)" required><input name="salle" placeholder="Salle">
+   <select name="type"><option>CM</option><option>TD</option><option>TP</option><option>SAÉ</option></select>
+   <button>Ajouter</button></form>
+  ${[1,2,3,4,5,6].map(j=>{const l=edt.filter(c=>+c.jour===j).sort((a,b)=>a.debut.localeCompare(b.debut));return l.length?`<h2 style="margin-top:18px">${JOURS[j]}</h2>`+l.map(c=>`<div class="row"><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.module)}<div class="m">${esc(c.salle)}</div></span><span class="tag cy">${esc(c.type)}</span><button class="x" data-del="edt" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join(''):''}).join('')||'<p class="empty">Aucun cours pour l\'instant.</p>'}</div></details>`;
+};
+V.notes=()=>{
+  const notes=S.get('notes',[]);
+  return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Une UE est validée à partir de 10/20</p>
+  <div class="card" style="margin-bottom:16px"><form class="f" data-f="notes">
+   <input name="module" placeholder="Ressource / SAÉ (ex : R1.14)" required>
+   <select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+   <input name="note" type="number" step="0.25" min="0" max="20" placeholder="Note /20" required>
+   <input name="coef" type="number" step="0.5" min="0.5" placeholder="Coef" required>
+   <button>Ajouter</button></form></div>
+  <div class="grid">${Object.entries(UES).map(([u,l])=>{const ls=notes.filter(n=>n.ue===u),m=avg(ls);return `<div class="card"><h2>${l}</h2><div class="big ${m!==null&&m<10?'ko':''}" style="font-size:40px">${fx(m)}<small> /20</small></div><div class="bar"><i style="width:${m===null?0:m*5}%;background:${m!==null&&m<10?'var(--bad)':'var(--acc)'}"></i></div><div style="margin-top:12px">${ls.map(n=>`<div class="row"><span class="t">${esc(n.module)}<div class="m">coef ${esc(n.coef)}</div></span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucune note.</p>'}</div></div>`}).join('')}</div>
+  <div class="card" style="margin-top:16px"><h2>Simulateur</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Quelle note il te faut à la prochaine évaluation pour atteindre ton objectif ?</p>
+   <form class="f" data-f="sim"><select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input name="coef" type="number" step="0.5" min="0.5" placeholder="Coef de l'éval" required><input name="obj" type="number" step="0.5" min="0" max="20" value="10" placeholder="Objectif"><button>Calculer</button></form><div id="simres"></div></div>`;
+};
+V.devoirs=()=>{
+  const dv=S.get('devoirs',[]).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));
+  return `<h1>Devoirs & <b>DS</b></h1><p class="sub">Triés par urgence</p>
+  <div class="card"><form class="f" data-f="devoirs">
+   <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" required><input name="module" placeholder="Module" required>
+   <select name="type"><option>Devoir</option><option>DS</option><option>Projet</option></select>
+   <input name="date" type="date" required><button>Ajouter</button></form>
+   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span><button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
+};
+let revTab='pdf',fcIdx=0,fcBack=false,fcMod='';
+V.revisions=()=>{
+  const cards=S.get('cards',[]),mods=[...new Set(cards.map(c=>c.module))];
+  const deck=cards.filter(c=>!fcMod||c.module===fcMod);if(fcIdx>=deck.length)fcIdx=0;const cur=deck[fcIdx];
+  return `<h1><b>Révisions</b></h1><p class="sub">Tes guides et tes flashcards</p>
+  <div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides PDF</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards</button></div>
+  ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R1.06)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
+  :`<div class="grid"><div class="card"><h2>S'entraîner</h2><select data-fm style="margin-bottom:12px"><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>
+   ${cur?`<div class="flash ${fcBack?'back':''}" data-flip>${esc(fcBack?cur.r:cur.q)}</div><div style="display:flex;gap:8px;align-items:center"><button class="ghost" data-fn="-1">←</button><span style="flex:1;text-align:center;color:var(--mute);font-family:var(--mono)">${fcIdx+1}/${deck.length}</span><button class="ghost" data-fn="1">→</button></div><p class="m" style="color:var(--mute);text-align:center;margin:8px 0 0">Touche la carte pour voir la réponse</p>`:'<p class="empty">Crée ta première carte.</p>'}</div>
+   <div class="card"><h2>Nouvelle carte</h2><form class="f" data-f="cards" style="grid-template-columns:1fr"><input name="module" placeholder="Module" required><textarea name="q" rows="2" placeholder="Question" required></textarea><textarea name="r" rows="2" placeholder="Réponse" required></textarea><button>Ajouter la carte</button></form>
+   ${cards.slice(-5).reverse().map(c=>`<div class="row"><span class="t">${esc(c.q)}<div class="m">${esc(c.module)}</div></span><button class="x" data-del="cards" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join('')}</div></div>`}`;
+};
+V.reseau=()=>`<h1>Outils <b>réseau</b></h1><p class="sub">Calcul IP et conversions</p>
+  <div class="grid"><div class="card"><h2>Calculateur IP</h2><form class="f" data-f="ip" style="grid-template-columns:1fr auto"><input name="ip" value="192.168.1.10/24" placeholder="ex : 10.0.5.20/22" required><button>Calculer</button></form><div id="ipres"></div></div>
+  <div class="card"><h2>Conversions</h2><form class="f" data-f="conv"><input name="v" value="200" required><select name="b"><option value="10">Décimal</option><option value="2">Binaire</option><option value="16">Hexa</option></select><button>Convertir</button></form><div id="convres"></div></div></div>`;
+
+/* ---------- Rendu + routage ---------- */
+const render=()=>{
+  let k=location.hash.slice(1);if(!V[k])k='accueil';
+  $('#view').innerHTML=V[k]();
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
+  if(k==='revisions'&&revTab==='pdf')listPdf();
+  if(k==='reseau'){calcIp('192.168.1.10/24');conv('200',10)}
+};
+addEventListener('hashchange',render);
+
+/* ---------- Outils réseau ---------- */
+const ipToInt=s=>{const p=s.split('.');if(p.length!==4||p.some(x=>!/^\d+$/.test(x)||+x>255))return null;return p.reduce((a,x)=>a*256+ +x,0)};
+const intToIp=n=>[24,16,8,0].map(s=>Math.floor(n/2**s)%256).join('.');
+const bin=n=>[24,16,8,0].map(s=>(Math.floor(n/2**s)%256).toString(2).padStart(8,'0')).join('.');
+const calcIp=v=>{
+  const out=$('#ipres');const [a,c]=v.trim().split('/');const ip=ipToInt(a||''),cidr=+c;
+  if(ip===null||!/^\d+$/.test(c||'')||cidr>32){out.innerHTML='<p class="ko">Format attendu : 192.168.1.10/24</p>';return}
+  const size=2**(32-cidr),net=Math.floor(ip/size)*size,bc=net+size-1,mask=2**32-size;
+  const hosts=cidr>=31?(cidr===32?1:2):size-2;
+  const cls=+a.split('.')[0]<128?'A':+a.split('.')[0]<192?'B':+a.split('.')[0]<224?'C':'D/E';
+  out.innerHTML=`<dl class="res"><dt>Masque</dt><dd>${intToIp(mask)}</dd><dt>Réseau</dt><dd class="ok">${intToIp(net)}/${cidr}</dd><dt>Broadcast</dt><dd>${intToIp(bc)}</dd><dt>1re hôte</dt><dd>${cidr>=31?intToIp(net):intToIp(net+1)}</dd><dt>Dernière</dt><dd>${cidr>=31?intToIp(bc):intToIp(bc-1)}</dd><dt>Nb hôtes</dt><dd>${hosts.toLocaleString('fr-FR')}</dd><dt>Classe</dt><dd>${cls}</dd><dt>IP bin</dt><dd>${bin(ip)}</dd><dt>Masque bin</dt><dd>${bin(mask)}</dd></dl>`;
+};
+const conv=(v,b)=>{
+  const out=$('#convres');const ok={2:/^[01]+$/,10:/^\d+$/,16:/^[0-9a-f]+$/i}[b].test(v.trim());const n=ok?parseInt(v.trim(),b):NaN;
+  out.innerHTML=isNaN(n)?'<p class="ko">Valeur invalide pour cette base</p>':`<dl class="res"><dt>Décimal</dt><dd>${n}</dd><dt>Binaire</dt><dd class="ok">${n.toString(2).replace(/\B(?=(\d{4})+$)/g,' ')}</dd><dt>Hexa</dt><dd>0x${n.toString(16).toUpperCase()}</dd></dl>`;
+};
+
+/* ---------- PDF ---------- */
+const listPdf=async()=>{
+  let l;try{l=await tx('readonly',s=>s.getAll())}catch(e){l=memPdf}
+  const el=$('#pdflist');if(!el)return;
+  const mods=[...new Set(l.map(p=>p.module))].sort();
+  el.innerHTML=mods.map(m=>`<h2 style="margin-top:14px">${esc(m)}</h2>`+l.filter(p=>p.module===m).map(p=>`<div class="row"><span class="t">${esc(p.name)}<div class="m">${(p.size/1048576).toFixed(1).replace('.',',')} Mo</div></span><button class="ghost" data-open="${esc(p.id)}">Ouvrir</button><button class="x" data-dpdf="${esc(p.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Dépose ton premier guide.</p>';
+};
+const openPdf=async id=>{
+  let p;try{p=await tx('readonly',s=>s.get(id))}catch(e){p=memPdf.find(x=>x.id===id)}
+  if(!p)return;$('#mtitle').textContent=p.name;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const doc=await pdfjsLib.getDocument({data:await p.blob.arrayBuffer()}).promise;box.innerHTML='';
+    for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i),vp=pg.getViewport({scale:1.6}),cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;box.appendChild(cv);await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise}
+  }catch(e){box.innerHTML='<p class="ko">Impossible d\'afficher ce PDF ici.</p>'}
+};
+$('#mclose').onclick=()=>{$('#modal').classList.remove('on');$('#pages').innerHTML=''};
+
+/* ---------- Événements ---------- */
+document.addEventListener('submit',async e=>{
+  const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
+  if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
+  if(k==='ip')return calcIp(d.ip);
+  if(k==='conv')return conv(d.v,+d.b);
+  if(k==='sim'){const ls=S.get('notes',[]).filter(n=>n.ue===d.ue),sc=ls.reduce((a,n)=>a+ +n.coef,0),sn=ls.reduce((a,n)=>a+n.note*n.coef,0),c=+d.coef,o=+d.obj||10,need=(o*(sc+c)-sn)/c;
+    $('#simres').innerHTML=`<div class="big" style="font-size:44px;margin-top:6px">${need<=0?'0':need>20?'&gt;20':fx(need)}<small> /20</small></div><p style="margin:6px 0 0" class="${need>20?'ko':'ok'}">${need<=0?'Objectif déjà atteint, même avec 0 💪':need>20?'Pas atteignable sur cette seule éval, il faudra rattraper ailleurs.':'Note minimale pour atteindre '+o+'/20 dans cette UE.'}</p>`;return}
+  if(k==='pdf'){const file=f.file.files[0];if(!file)return;const p={id:uid(),module:d.module.trim(),name:file.name,size:file.size,blob:file};
+    try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}toast('Guide déposé ✓');f.reset();return listPdf()}
+  if(k==='notes'){d.note=+d.note;d.coef=+d.coef}
+  d.id=uid();const l=S.get(k,[]);l.push(d);S.set(k,l);toast('Ajouté ✓');render();
+});
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
+  if(t.dataset.sync!==undefined)return loadEdt(edtWeek);
+  if(t.dataset.unapi!==undefined){S.set('apiUrl','');return render()}
+  if(t.dataset.del){const k=t.dataset.del;S.set(k,S.get(k,[]).filter(x=>x.id!==t.dataset.id));toast('Supprimé');return render()}
+  if(t.dataset.tog){S.set('devoirs',S.get('devoirs',[]).map(x=>x.id===t.dataset.tog?{...x,done:!x.done}:x));return render()}
+  if(t.dataset.rt){revTab=t.dataset.rt;return render()}
+  if(t.dataset.flip!==undefined){fcBack=!fcBack;return render()}
+  if(t.dataset.fn){const n=S.get('cards',[]).filter(c=>!fcMod||c.module===fcMod).length;fcIdx=(fcIdx+ +t.dataset.fn+n)%n;fcBack=false;return render()}
+  if(t.dataset.open)return openPdf(t.dataset.open);
+  if(t.dataset.dpdf){const id=t.dataset.dpdf;try{await tx('readwrite',s=>s.delete(id))}catch(err){memPdf.splice(memPdf.findIndex(x=>x.id===id),1)}toast('Supprimé');return listPdf()}
+});
+document.addEventListener('change',e=>{
+  if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcIdx=0;fcBack=false;render()}
+  if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
+});
+render();
+/* Au démarrage : on rafraîchit la semaine en cours si les données ont plus de 6 h */
+{const cur=S.get('edtf',{})[S.get('edtCur','')];if(S.get('apiUrl',API0)&&(!cur||Date.now()-new Date(cur.maj)>6*36e5))loadEdt()}
+}
+</script>
+</body>
+</html>
