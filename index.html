@@ -102,6 +102,11 @@ code{font-family:var(--mono);color:var(--cy)}
 .lg{display:inline-block;font:700 12px var(--mono);padding:3px 8px;border-radius:6px;margin:0 4px 4px 0;white-space:nowrap}
 .pars{font:700 clamp(30px,6vw,40px)/1.1 var(--mono);color:var(--acc);margin:4px 0 10px}
 .alerte{margin-top:10px;padding:10px 12px;border-radius:10px;background:#3a1520;color:#ffb3c0;font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:4px}
+.tile span{font-size:12px;color:var(--mute)}.tile b{font:700 22px var(--mono)}
+a.hint{display:block;text-decoration:none;color:var(--mute);font-size:15px}a.hint b{color:var(--acc)}
+.seg{margin-bottom:18px}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -145,7 +150,7 @@ const memPdf=[];
 /* ---------- Supabase : connexion par code + synchronisation ---------- */
 const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
 const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
-const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet']; // ce qui part dans le cloud
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet','profil']; // ce qui part dans le cloud
 let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
 const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
 const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
@@ -295,9 +300,15 @@ const ic={
  notes:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
  devoirs:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/>',
  revisions:'<path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zm0 0a2 2 0 002 2h13"/>',
- reseau:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>'
+ reseau:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>',
+ etudes:'<path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zm0 0a2 2 0 002 2h13"/><path d="M9 8h6M9 12h4"/>',
+ moi:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>'
 };
-const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['devoirs','Devoirs'],['revisions','Révisions'],['reseau','Réseau']];
+const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['etudes','Études'],['moi','Moi']];
+// Devoirs, Révisions et Réseau sont regroupés dans l'onglet « Études » (les anciens liens #devoirs… marchent toujours)
+const SOUS_ETUDES={devoirs:'Devoirs',revisions:'Révisions',reseau:'Réseau'};
+let etudesTab='devoirs';
+const profil=()=>({prenom:'',groupe:'RT1-C1',...S.get('profil',{})});
 $('#nav').innerHTML='<div class="brand"><svg width="30" height="30" style="vertical-align:-8px;margin-right:8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10302b"/><stop offset="1" stop-color="#0b0f14"/></linearGradient><linearGradient id="ln2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ad7ff"/><stop offset="1" stop-color="#00e5a0"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bg2)"/><rect x="10" y="10" width="492" height="492" rx="104" fill="none" stroke="#22303e" stroke-width="4"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="url(#ln2)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>BUT<span>_R&amp;T</span></div>'+NAV.map(([k,l])=>`<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[k]}</svg>${l}</a>`).join('');
 
 /* ---------- Calculs de moyennes ---------- */
@@ -336,22 +347,20 @@ const loadEdt=async(num='')=>{
   loading=false;render();
 };
 V.accueil=()=>{
-  const d=new Date(),dj=d.getDay(),today=isoDay(d);
-  const edt=coursDu(today),nm=d.getHours()*60+d.getMinutes();
-  const dv=S.get('devoirs',[]);
-  const ds=dv.filter(x=>x.type==='DS'&&!x.done&&daysTo(x.date)>=0).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const urg=dv.filter(x=>!x.done&&x.type!=='DS').sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
-  const g=genAvg();
-  return `<h1>Salut <b>Youssouf</b></h1><p class="sub">${JOURS[dj]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} · RT1-C1</p>
+  const d=new Date(),p=profil(),dv=S.get('devoirs',[]);
+  // « À venir » : DS et devoirs non faits, du plus proche au plus lointain (4 max)
+  const avenir=dv.filter(x=>!x.done&&daysTo(x.date)>=0).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
+  const g=genAvg(),due=dueCount(),nj=absStats().nj;
+  return `<h1>Salut${p.prenom?` <b>${esc(p.prenom)}</b>`:' 👋'}</h1><p class="sub">${JOURS[d.getDay()]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}${p.groupe?' · '+esc(p.groupe):''}</p>
   <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${trajetCard()}
-  <div class="grid">
-   <div class="card"><h2>Prochain DS</h2>${ds?`<div class="big">J-${daysTo(ds.date)}</div><p style="margin:10px 0 0">${esc(ds.titre)} <span class="tag ds">${esc(ds.module)}</span></p><p class="m" style="color:var(--mute);margin:4px 0 0">${fmtD(ds.date)}</p>`:'<p class="empty">Aucun DS prévu. Ajoute-le dans Devoirs.</p>'}</div>
-   <div class="card"><h2>Moyenne générale</h2><div class="big ${g!==null&&g<10?'ko':''}">${fx(g)}<small> /20</small></div>${ueAvgs().map(x=>`<div class="row"><span class="t">${UES[x.u]}</span><b class="${x.m===null?'':x.m>=10?'ok':'ko'}" style="font-family:var(--mono)">${fx(x.m)}</b></div>`).join('')}</div>
-   <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map((c,i)=>rowCours(c,today,i,toMin(c.debut)<=nm&&nm<toMin(c.fin))).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
-   <div class="card"><h2>Révisions du jour</h2><div class="big" style="color:var(--cy)">${dueCount()}<small> carte${dueCount()>1?'s':''}</small></div><p style="margin:10px 0 0"><a href="#revisions" data-gofc style="color:var(--acc)">Réviser maintenant →</a></p>${absStats().nj?`<p class="m" style="color:var(--bad);margin:8px 0 0">${fh(absStats().nj)} d'absences non justifiées</p>`:''}</div>
-   <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
-  </div><div style="margin-top:16px">${syncCard()}</div>${notifCard()}`;
+  <div class="card" style="margin-bottom:16px"><h2>À venir</h2>${avenir.length?avenir.map(x=>{const j=daysTo(x.date);return `<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span>${x.type==='DS'?'<span class="tag ds">DS</span>':''}<span class="tag ${j<=2?'ds':'cy'}">${j===0?"auj.":'J-'+j}</span></div>`}).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
+  <div class="tiles">
+   <a class="tile" href="#notes"><span>Moyenne</span><b class="${g!==null&&g<10?'ko':'ok'}">${fx(g)}</b></a>
+   <a class="tile" href="#revisions" data-gofc><span>À réviser</span><b style="color:var(--cy)">${due}</b></a>
+   <a class="tile" href="#notes" data-goabs><span>Abs. non just.</span><b class="${nj?'ko':''}">${nj?fh(nj):'0'}</b></a>
+  </div>`;
 };
+
 
 /* ---------- Accueil vivant : le cours en cours ou le prochain ---------- */
 const duree=m=>m<60?`${m} min`:`${Math.floor(m/60)}h${m%60?pad(m%60):''}`;
@@ -385,15 +394,17 @@ const fetchTrajet=async u=>{const now=Date.now(),c=trajetRes[u];if(c&&now-c.t<(u
 const badge=e=>`<span class="lg" style="background:${esc(e.couleur||'#22303e')};color:${esc(e.texte||'#fff')}">${esc(e.mode==='Bus'||e.mode==='RER'||e.mode==='Tramway'?e.mode.replace('Tramway','T')+' '+e.ligne:e.ligne)}</span>`;
 const alertesHtml=d=>(d.alertes||[]).map(a=>`<div class="alerte">⚠️ ${esc(a)}</div>`).join('');
 const etapesHtml=j=>j.etapes.map(e=>`<div class="row" style="padding:7px 0"><span class="time" style="width:100px">${esc(e.dep)}–${esc(e.arr)}</span><span class="t">${badge(e)}<div class="m">${esc(e.de)} → ${esc(e.a)}</div></span></div>`).join('')+`<p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">Arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min · ${j.corresp} correspondance${j.corresp>1?'s':''}</p>`;
-const trajetCard=()=>{
-  const t=trajetCfg();
-  if(!t||trajetEdit)return `<div class="card" id="trajet" style="margin-bottom:16px"><h2>Mon trajet 🚆</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Ta gare de départ et ton arrêt d'arrivée : l'app te dira à quelle heure partir pour ton premier cours, en temps réel.</p>
+const trajetForm=()=>{const t=trajetCfg();
+  return `<div class="card" style="margin-bottom:16px"><h2>Mon itinéraire 🚆</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Ta gare de départ et ton arrêt d'arrivée : l'accueil te dira à quelle heure partir pour ton premier cours, en temps réel.</p>
     <form class="f" data-f="trajet" style="grid-template-columns:1fr"><input name="de" placeholder="Départ (ex : nom de ta gare)" value="${esc(t?.de||'')}" required><input name="vers" placeholder="Arrivée (ex : arrêt de bus près de l'IUT)" value="${esc(t?.vers||'')}" required>
     <label style="display:flex;align-items:center;gap:10px">Arriver <input name="marge" type="number" min="0" max="60" value="${esc(t?.marge??10)}" style="width:84px"> min avant le cours</label>
-    <div style="display:flex;gap:8px"><button>Enregistrer</button>${t?'<button type="button" class="ghost" data-trcancel>Annuler</button>':''}</div></form>
-    <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 0">🔐 Ces infos restent privées : elles sont rangées dans ton espace Supabase, jamais dans le code public.</p></div>`;
-  return `<div class="card" id="trajet" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;flex:1">Mon trajet 🚆</h2><button class="ghost" data-trmode style="min-height:36px;padding:0 12px;font-size:14px">${trajetMode==='arrivee'?'Départs maintenant':'Pour mon cours'}</button><button class="x" data-tredit aria-label="Modifier le trajet" style="font-size:16px">✎</button></div><div id="trajetbody"><p class="empty">Calcul du trajet…</p></div></div>`;
+    <button>Enregistrer</button></form>
+    <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 0">🔐 Rangé dans ton espace privé Supabase, jamais dans le code public.</p></div>`};
+const trajetCard=()=>{
+  if(!trajetCfg())return `<a class="card hint" href="#moi" style="margin-bottom:16px">🚆 Configure ton itinéraire dans <b>Moi</b> pour savoir à quelle heure partir →</a>`;
+  return `<div class="card" id="trajet" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;flex:1">Mon trajet</h2><button class="ghost" data-trmode style="min-height:34px;padding:0 12px;font-size:13px">${trajetMode==='arrivee'?'Départs maintenant':'Pour mon cours'}</button></div><div id="trajetbody"><p class="empty">Calcul du trajet…</p></div></div>`;
 };
+
 const loadTrajet=async()=>{
   const el=$('#trajetbody'),t=trajetCfg();if(!el||!t||trajetEdit)return;
   try{
@@ -401,7 +412,7 @@ const loadTrajet=async()=>{
       const cb=cibleTrajet();if(!cb){el.innerHTML='<p class="empty">Aucun cours à venir cette semaine.</p>';return}
       const d=await fetchTrajet(urlTrajet('arrivee',cb.day,hm(toMin(cb.c.debut)-(+t.marge||10)))),j=d.trajets[0],today=isoDay(new Date());
       const quand=cb.day===today?"aujourd'hui":cb.day===addD(today,1)?'demain':fmtD(cb.day);
-      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">Pour ${esc(cb.c.code||cb.c.titre)} à ${esc(cb.c.debut.replace(':','h'))} ${quand}</p><div class="pars">Pars à ${esc(j.depart.replace(':','h'))}</div>${etapesHtml(j)}${alertesHtml(d)}`:`<p class="empty">Aucun trajet trouvé pour arriver à l'heure.</p>${alertesHtml(d)}`;
+      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">Pour ${esc(cb.c.code||cb.c.titre)} à ${esc(cb.c.debut.replace(':','h'))} ${quand}</p><div class="pars">Pars à ${esc(j.depart.replace(':','h'))}</div><div>${j.etapes.map(badge).join('')}<span class="m" style="color:var(--mute);font-size:13px">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</span></div><details style="margin-top:6px"><summary class="m" style="color:var(--cy);cursor:pointer;font-size:14px">Voir les étapes</summary>${etapesHtml(j)}</details>${alertesHtml(d)}`:`<p class="empty">Aucun trajet trouvé pour arriver à l'heure.</p>${alertesHtml(d)}`;
     }else{
       const n=new Date(),d=await fetchTrajet(urlTrajet('depart',isoDay(n),hm(n.getHours()*60+n.getMinutes())));
       el.innerHTML=(d.trajets.map(j=>`<div class="row"><span class="time" style="width:64px">${esc(j.depart.replace(':','h'))}</span><span class="t">${j.etapes.map(badge).join(' ')}<div class="m">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</div></span></div>`).join('')||'<p class="empty">Aucun départ trouvé.</p>')+alertesHtml(d);
@@ -411,6 +422,20 @@ const loadTrajet=async()=>{
 const redrawTrajet=()=>{const c=$('#trajet');if(c){c.outerHTML=trajetCard();loadTrajet()}};
 setInterval(()=>{if((location.hash||'#accueil')==='#accueil')loadTrajet()},120000);
 
+
+/* ---------- Onglet Études = Devoirs + Révisions + Réseau ---------- */
+V.etudes=()=>`<div class="tabs seg">${Object.entries(SOUS_ETUDES).map(([k,l])=>`<button class="${etudesTab===k?'':'ghost'}" data-et="${k}">${l}</button>`).join('')}</div>${V[etudesTab]()}`;
+
+/* ---------- Onglet Moi : profil et réglages ---------- */
+V.moi=()=>{const p=profil();
+  return `<h1>À propos de <b>moi</b></h1><p class="sub">Ton profil, ta connexion et tes réglages</p>
+  <div class="card" style="margin-bottom:16px"><h2>Profil</h2><form class="f" data-f="profil"><input name="prenom" placeholder="Prénom" value="${esc(p.prenom)}"><input name="groupe" placeholder="Groupe (ex : RT1-C1)" value="${esc(p.groupe)}"><button>Enregistrer</button></form>
+   <p class="m" style="color:var(--mute);font-size:13px;margin:0">Ton prénom s'affiche sur l'accueil. L'emploi du temps Formadep reste celui de RT1-C1.</p></div>
+  <div style="margin-bottom:16px">${syncCard()}</div>
+  ${trajetForm()}
+  ${notifCard().replace('style="margin-top:16px"','style="margin-bottom:16px"')}
+  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.2 · conçue et développée${p.prenom?' par '+esc(p.prenom):''} avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
+};
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
 const openCours=(day,i)=>{
@@ -599,13 +624,16 @@ Lien R1-R2 2</textarea><button>Découper</button></form><div id="vlsmres"></div>
 
 /* ---------- Rendu + routage ---------- */
 const render=()=>{
-  let k=location.hash.slice(1);if(!V[k])k='accueil';
+  let k=location.hash.slice(1);
+  if(SOUS_ETUDES[k]){etudesTab=k;k='etudes'}              // #devoirs → Études / Devoirs
+  if(!V[k])k='accueil';
   $('#view').innerHTML=V[k]();
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
-  if(k==='revisions'&&revTab==='pdf')listPdf();
+  const sub=k==='etudes'?etudesTab:k;
+  if(sub==='revisions'&&revTab==='pdf')listPdf();
   if(k==='edt')ensureWeek(edtDay||firstDay());
   if(k==='accueil')loadTrajet();
-  if(k==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
+  if(sub==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
 };
 addEventListener('hashchange',render);
 /* Glisser le doigt pour changer de jour (comme sur Pronote) */
@@ -752,7 +780,8 @@ $('#mclose').onclick=()=>{$('#modal').classList.remove('on');$('#pages').innerHT
 /* ---------- Événements ---------- */
 document.addEventListener('submit',async e=>{
   const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
-  if(k==='trajet'){S.set('trajet',{de:d.de.trim(),vers:d.vers.trim(),marge:+d.marge||0});trajetEdit=false;trajetRes={};toast('Trajet enregistré ✓');return render()}
+  if(k==='trajet'){S.set('trajet',{de:d.de.trim(),vers:d.vers.trim(),marge:+d.marge||0});trajetRes={};toast('Itinéraire enregistré ✓');return render()}
+  if(k==='profil'){S.set('profil',{prenom:d.prenom.trim(),groupe:d.groupe.trim()});toast('Profil enregistré ✓');return render()}
   if(k==='login')return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up');
   if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
   if(k==='ip')return calcIp(d.ip);
@@ -781,10 +810,10 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
   if(e.target.id==='sheet'){$('#sheet').classList.remove('on');return}
   {const cc=e.target.closest('[data-cday]');if(cc&&!e.target.closest('button')){openCours(cc.dataset.cday,+cc.dataset.ci);return}}
+  if(e.target.closest('[data-goabs]'))notesTab='abs';
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
-  if(t.dataset.tredit!==undefined){trajetEdit=true;return redrawTrajet()}
-  if(t.dataset.trcancel!==undefined){trajetEdit=false;return redrawTrajet()}
+  if(t.dataset.et){etudesTab=t.dataset.et;if(location.hash!=='#etudes')location.hash='#etudes';return render()}
   if(t.dataset.trmode!==undefined){trajetMode=trajetMode==='arrivee'?'depart':'arrivee';return redrawTrajet()}
   if(t.dataset.pushon!==undefined)return enablePush();
   if(t.dataset.pushoff!==undefined)return disablePush();
