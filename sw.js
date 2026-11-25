@@ -4,7 +4,7 @@
 //  Il garde une copie des fichiers de l'app pour qu'elle s'ouvre
 //  même sans réseau.
 // ============================================================
-const CACHE = 'app-but-v1'; // change ce nom pour forcer une remise à zéro du cache
+const CACHE = 'app-but-v2'; // change ce nom pour forcer une remise à zéro du cache
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 // 1) Installation : on range les fichiers de base dans le cache
@@ -58,4 +58,26 @@ self.addEventListener('fetch', e => {
       return hit || net;
     })
   );
+});
+
+// 4) Une notification arrive (envoyée par ton Worker, déjà déchiffrée par le téléphone)
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'App BUT R&T', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'App BUT R&T', {
+    body: d.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: d.url || './' }
+  }));
+});
+
+// 5) Tu touches la notification → on ouvre (ou on remet au premier plan) l'app
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) if ('focus' in c) { c.navigate(url).catch(() => {}); return c.focus(); }
+    return clients.openWindow(url);
+  }));
 });

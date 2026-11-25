@@ -132,7 +132,7 @@ const memPdf=[];
 /* ---------- Supabase : connexion par code + synchronisation ---------- */
 const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
 const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
-const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta']; // ce qui part dans le cloud
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs']; // ce qui part dans le cloud
 let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
 const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
 const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
@@ -184,6 +184,52 @@ const syncCard=()=>{
   return `<div class="card"><h2>Synchronisation ☁</h2><div class="row"><span class="t">${esc(sbUser.email)}<div class="m">${syncing?'Synchronisation…':esc(syncMsg)||'Connecté'}${last?' · '+new Date(last).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}</div></span><button class="ghost" data-syncnow style="min-height:36px;padding:0 12px">↻</button><button class="ghost" data-logout style="min-height:36px;padding:0 12px;font-size:14px">Déconnexion</button></div></div>`;
 };
 
+/* ---------- Notifications (rappels du soir à 19h) ---------- */
+const VAPID_PUBLIC='BMwN63Tna2eoif17BrT9DlIYYqh1rxEXgcy9KA7fJ7dUgytZJi6EhISgICoHbe6r_L0YhsppQR_HKERpbPeAkgw'; // clé publique : sert à prouver que les notifs viennent de TON Worker
+const pushOK=()=>'serviceWorker' in navigator&&typeof PushManager!=='undefined'&&typeof Notification!=='undefined';
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent||'');
+const isStandalone=()=>(typeof matchMedia!=='undefined'&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+const b64ToBytes=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
+let pushOn=null,pushBusy=false;
+const checkPush=async()=>{if(!pushOK())return;try{const r=await navigator.serviceWorker.getRegistration();const s=r&&await r.pushManager.getSubscription();pushOn=!!s}catch(e){pushOn=false}render()};
+const enablePush=async()=>{
+  try{
+    const perm=await Notification.requestPermission();        // la fenêtre « Autoriser les notifications ? »
+    if(perm!=='granted'){toast('Notifications refusées dans les réglages');return}
+    pushBusy=true;render();
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(VAPID_PUBLIC)});
+    const j=sub.toJSON();                                     // adresse d'envoi + clés de chiffrement de CE téléphone
+    const {error}=await sb.from('push_subs').upsert({endpoint:j.endpoint,user_id:sbUser.id,p256dh:j.keys.p256dh,auth:j.keys.auth});
+    if(error)throw error;
+    pushOn=true;toast('Notifications activées 🔔');
+  }catch(e){toast('Erreur : '+(e.message||e))}
+  pushBusy=false;render();
+};
+const disablePush=async()=>{
+  try{const reg=await navigator.serviceWorker.getRegistration();const s=reg&&await reg.pushManager.getSubscription();
+    if(s){await sb.from('push_subs').delete().eq('endpoint',s.endpoint);await s.unsubscribe()}}catch(e){}
+  pushOn=false;toast('Notifications désactivées');render();
+};
+const testPush=async()=>{
+  try{const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch((S.get('apiUrl',API0)||API0).replace(/\/+$/,'')+'/api/notif-test',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+    const d=await r.json().catch(()=>({}));
+    toast(r.ok?(d.envoye?'Notif envoyée, regarde ton écran 👀':'Aucun appareil abonné'):'Erreur : '+(d.erreur||r.status));
+  }catch(e){toast('Erreur : '+(e.message||e))}
+};
+const notifCard=()=>{
+  if(!sb||!sbUser)return '';
+  let body;
+  if(!pushOK())body=isIOS()&&!isStandalone()?'<p class="m" style="color:var(--warn);margin:0">Sur iPhone, les notifications ne marchent que dans l\'app installée : Safari → Partager → « Sur l\'écran d\'accueil », puis ouvre l\'app depuis son icône.</p>':'<p class="empty">Ce navigateur ne gère pas les notifications.</p>';
+  else{const p={cours:true,ds:true,dev:true,...S.get('notifPrefs',{})};
+    const opt=(k,l)=>`<label style="display:flex;align-items:center;gap:10px;min-height:40px"><input type="checkbox" data-pref="${k}" ${p[k]?'checked':''}> ${l}</label>`;
+    body=`<p class="m" style="color:var(--mute);margin:0 0 8px">Chaque soir à 19h, un résumé de ta journée de demain (seulement s'il y a quelque chose).</p>
+    ${opt('cours','Mon premier cours')}${opt('ds','Mes DS')}${opt('dev','Mes devoirs à rendre')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${pushOn?'<button class="ghost" data-pushtest>Envoyer un test</button><button class="ghost" data-pushoff>Désactiver</button>':`<button data-pushon ${pushBusy?'disabled':''}>${pushBusy?'Activation…':'Activer les notifications'}</button>`}</div>`}
+  return `<div class="card" style="margin-top:16px"><h2>Rappels du soir 🔔</h2>${body}</div>`;
+};
+
 /* ---------- PDF dans le cloud ---------- */
 const pdfPath=id=>`${sbUser.id}/${id}.pdf`;
 const uploadPendingPdfs=async()=>{
@@ -201,7 +247,29 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const $=s=>document.querySelector(s);
 const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),1800)};
-const UES={UE1:'UE1 · Administrer',UE2:'UE2 · Connecter',UE3:'UE3 · Programmer'};
+const UES={UE1:'UE1.1 · Administrer',UE2:'UE1.2 · Connecter',UE3:'UE1.3 · Créer des outils'};
+// Coefficients officiels du S1 (tableau affiché à l'IUT) : code, nom court, intitulé, coef dans chaque UE
+const MODS=[
+ ['SAE11','SAÉ11','Hygiène informatique et cybersécurité',{UE1:10}],
+ ['SAE12','SAÉ12','S\'initier aux réseaux informatiques',{UE1:31}],
+ ['SAE13','SAÉ13','Découvrir un dispositif de transmission',{UE2:36}],
+ ['SAE14','SAÉ14','Se présenter sur Internet',{UE3:8}],
+ ['SAE15','SAÉ15','Traitement de données',{UE3:35}],
+ ['R101','R101','Initiation aux réseaux informatiques',{UE1:13,UE2:4,UE3:4}],
+ ['R102','R102','Principes et architecture des réseaux',{UE1:12}],
+ ['R103','R103','Réseaux locaux et équipements actifs',{UE1:7,UE2:2,UE3:2}],
+ ['R104','R104','Fondamentaux de l\'électronique analogique',{UE1:8,UE2:8}],
+ ['R105','R105','Supports de transmission',{UE2:6}],
+ ['R106','R106','Architecture des systèmes numériques',{UE1:5,UE3:5}],
+ ['R107','R107','Fondamentaux de la programmation',{UE3:19}],
+ ['R108','R108','Bases des systèmes d\'exploitation',{UE1:6,UE3:6}],
+ ['R109','R109','Introduction aux technologies Web',{UE3:4}],
+ ['R110','R110','Anglais',{UE1:5,UE2:5,UE3:5}],
+ ['R111','R111','Expression-Culture-Communication',{UE1:4,UE2:5,UE3:5}],
+ ['R112','R112','PPP',{UE1:2,UE2:2,UE3:2}],
+ ['R113','R113','Mathématiques du signal',{UE1:5,UE2:9}],
+ ['R114','R114','Mathématiques des transmissions',{UE1:5,UE2:9}],
+ ['R115','R115','Gestion de projet',{UE2:3,UE3:3}]];
 const JOURS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
 const daysTo=s=>Math.round((new Date(s+'T00:00')-today())/864e5);
@@ -220,8 +288,15 @@ const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['devoirs','Dev
 $('#nav').innerHTML='<div class="brand"><svg width="30" height="30" style="vertical-align:-8px;margin-right:8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10302b"/><stop offset="1" stop-color="#0b0f14"/></linearGradient><linearGradient id="ln2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ad7ff"/><stop offset="1" stop-color="#00e5a0"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bg2)"/><rect x="10" y="10" width="492" height="492" rx="104" fill="none" stroke="#22303e" stroke-width="4"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="url(#ln2)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>BUT<span>_R&amp;T</span></div>'+NAV.map(([k,l])=>`<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[k]}</svg>${l}</a>`).join('');
 
 /* ---------- Calculs de moyennes ---------- */
-const avg=list=>{const c=list.reduce((a,n)=>a+ +n.coef,0);return c?list.reduce((a,n)=>a+n.note*n.coef,0)/c:null};
-const ueAvgs=()=>{const notes=S.get('notes',[]);return Object.keys(UES).map(u=>({u,m:avg(notes.filter(n=>n.ue===u))}))};
+// "R1.14", "r114", "SAÉ 1.4" → code interne ("R114", "SAE14")
+const normMod=s=>{s=String(s||'');let m=s.match(/R\s*1\.?\s*(\d{2})/i);if(m)return 'R1'+m[1];m=s.match(/SA[ÉE]\s*1\.?\s*(\d)/i);if(m)return 'SAE1'+m[1];return null};
+// Les anciennes notes (avant les coefficients officiels) sont converties à la lecture
+const notesList=()=>S.get('notes',[]).map(n=>n.mod!==undefined?n:{...n,mod:normMod(n.module),eval:'Éval',poids:1}).map(n=>({...n,mod:MODS.some(x=>x[0]===n.mod)?n.mod:null}));
+// Moyenne d'une matière : moyenne pondérée de ses évals
+const modAvg=code=>{const l=notesList().filter(n=>n.mod===code),p=l.reduce((a,n)=>a+ +n.poids,0);return p?l.reduce((a,n)=>a+n.note*n.poids,0)/p:null};
+// Moyenne d'une UE : moyenne des matières notées, pondérée par leur coef dans cette UE
+const ueAvg=(u,skip)=>{let s=0,c=0;for(const [code,,,co] of MODS){if(!co[u]||code===skip)continue;const m=modAvg(code);if(m===null)continue;s+=m*co[u];c+=co[u]}return {m:c?s/c:null,c,s}};
+const ueAvgs=()=>Object.keys(UES).map(u=>({u,m:ueAvg(u).m}));
 const genAvg=()=>{const v=ueAvgs().filter(x=>x.m!==null);return v.length?v.reduce((a,x)=>a+x.m,0)/v.length:null};
 const fx=n=>n===null?'—':n.toFixed(2).replace('.',',');
 
@@ -254,7 +329,7 @@ V.accueil=()=>{
    <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map(c=>rowCours({...c,titre:c.titre||c.module})).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
    <div class="card"><h2>Révisions du jour</h2><div class="big" style="color:var(--cy)">${dueCount()}<small> carte${dueCount()>1?'s':''}</small></div><p style="margin:10px 0 0"><a href="#revisions" data-gofc style="color:var(--acc)">Réviser maintenant →</a></p>${absStats().nj?`<p class="m" style="color:var(--bad);margin:8px 0 0">${fh(absStats().nj)} d'absences non justifiées</p>`:''}</div>
    <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
-  </div><div style="margin-top:16px">${syncCard()}</div>`;
+  </div><div style="margin-top:16px">${syncCard()}</div>${notifCard()}`;
 };
 /* ---------- Emploi du temps façon Pronote ---------- */
 const toMin=h=>{const [a,b]=String(h).split(':');return a*60+ +b};
@@ -309,7 +384,7 @@ V.edt=()=>{
   <details class="card"><summary style="cursor:pointer;font-family:var(--mono);font-weight:700">Cours ajoutés à la main</summary><div style="margin-top:14px"><form class="f" data-f="edt">
    <select name="jour">${[1,2,3,4,5,6].map(j=>`<option value="${j}">${JOURS[j]}</option>`).join('')}</select>
    <input name="debut" type="time" value="08:30" required><input name="fin" type="time" value="10:00" required>
-   <input name="module" placeholder="Module (ex : R1.06)" required><input name="salle" placeholder="Salle">
+   <input name="module" placeholder="Module (ex : R106)" required><input name="salle" placeholder="Salle">
    <select name="type"><option>CM</option><option>TD</option><option>TP</option><option>SAÉ</option></select>
    <button>Ajouter</button></form>
   ${edt.map(c=>`<div class="row"><span class="time">${JOURS[c.jour].slice(0,3)} ${esc(c.debut)}</span><span class="t">${esc(c.module)}<div class="m">${esc(c.salle)}</div></span><span class="tag cy">${esc(c.type)}</span><button class="x" data-del="edt" data-id="${esc(c.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucun cours ajouté à la main.</p>'}</div></details>`;
@@ -325,19 +400,26 @@ V.devoirs=()=>{
 };
 let notesTab='notes';
 V.notes=()=>{
-  const notes=S.get('notes',[]);
   const tabs=`<div class="tabs"><button class="${notesTab==='notes'?'':'ghost'}" data-nt="notes">Notes</button><button class="${notesTab==='abs'?'':'ghost'}" data-nt="abs">Absences</button></div>`;
   if(notesTab==='abs')return `<h1>Absences & <b>retards</b></h1><p class="sub">Garde un œil sur ton assiduité</p>${tabs}${absView()}`;
-  return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Une UE est validée à partir de 10/20</p>${tabs}
-  <div class="card" style="margin-bottom:16px"><form class="f" data-f="notes">
-   <input name="module" placeholder="Ressource / SAÉ (ex : R1.14)" required>
-   <select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
-   <input name="note" type="number" step="0.25" min="0" max="20" placeholder="Note /20" required>
-   <input name="coef" type="number" step="0.5" min="0.5" placeholder="Coef" required>
-   <button>Ajouter</button></form></div>
-  <div class="grid">${Object.entries(UES).map(([u,l])=>{const ls=notes.filter(n=>n.ue===u),m=avg(ls);return `<div class="card"><h2>${l}</h2><div class="big ${m!==null&&m<10?'ko':''}" style="font-size:40px">${fx(m)}<small> /20</small></div><div class="bar"><i style="width:${m===null?0:m*5}%;background:${m!==null&&m<10?'var(--bad)':'var(--acc)'}"></i></div><div style="margin-top:12px">${ls.map(n=>`<div class="row"><span class="t">${esc(n.module)}<div class="m">coef ${esc(n.coef)}</div></span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucune note.</p>'}</div></div>`}).join('')}</div>
-  <div class="card" style="margin-top:16px"><h2>Simulateur</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Quelle note il te faut à la prochaine évaluation pour atteindre ton objectif ?</p>
-   <form class="f" data-f="sim"><select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input name="coef" type="number" step="0.5" min="0.5" placeholder="Coef de l'éval" required><input name="obj" type="number" step="0.5" min="0" max="20" value="10" placeholder="Objectif"><button>Calculer</button></form><div id="simres"></div></div>`;
+  const notes=notesList(),noted=MODS.filter(([c])=>modAvg(c)!==null),orph=notes.filter(n=>!n.mod);
+  const modOpts=MODS.map(([c,k,l])=>`<option value="${c}">${k} · ${esc(l)}</option>`).join('');
+  return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Coefficients officiels du S1 · moyennes provisoires (seules les matières déjà notées comptent)</p>${tabs}
+  <div class="card" style="margin-bottom:16px"><h2>Ajouter une note</h2><form class="f" data-f="notes">
+   <select name="mod" style="grid-column:1/-1">${modOpts}</select>
+   <input name="eval" placeholder="Évaluation (DS 1, TP 3…)" required>
+   <input name="note" type="number" step="0.01" min="0" max="20" placeholder="Note /20" required>
+   <input name="poids" type="number" step="0.25" min="0.25" value="1" title="Poids de cette éval dans la matière">
+   <button>Ajouter</button></form>
+   <p class="m" style="color:var(--mute);font-size:13px;margin:0">Le poids sert si une éval compte plus qu'une autre dans la même matière (ex : DS = 2, TP = 1). Sinon, laisse 1.</p></div>
+  <div class="grid">${Object.entries(UES).map(([u,l])=>{const r=ueAvg(u),m=r.m,tot=MODS.reduce((a,x)=>a+(x[3][u]||0),0);
+   return `<div class="card"><h2>${l}</h2><div class="big ${m!==null&&m<10?'ko':''}" style="font-size:40px">${fx(m)}<small> /20</small></div><div class="bar"><i style="width:${m===null?0:m*5}%;background:${m!==null&&m<10?'var(--bad)':'var(--acc)'}"></i></div>
+   <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 6px">Basée sur ${r.c} / ${tot} de coefficients</p>
+   ${MODS.filter(x=>x[3][u]).sort((a,b)=>b[3][u]-a[3][u]).map(([c,k,lab,co])=>{const a=modAvg(c);return `<div class="row" style="padding:7px 0"><span class="t" style="font-size:14px">${k} <span style="color:var(--mute)">${esc(lab)}</span></span><span class="tag cy">×${co[u]}</span><b style="font-family:var(--mono);min-width:44px;text-align:right" class="${a===null?'':a>=10?'ok':'ko'}">${a===null?'—':fx(a)}</b></div>`}).join('')}</div>`}).join('')}</div>
+  <div class="card" style="margin-top:16px"><h2>Mes notes par matière</h2>${noted.map(([c,k,lab])=>`<h2 style="margin:16px 0 4px;font-size:15px">${k} · ${esc(lab)} <span class="ok">${fx(modAvg(c))}</span></h2>`+notes.filter(n=>n.mod===c).map(n=>`<div class="row"><span class="t">${esc(n.eval)}<div class="m">poids ${esc(n.poids)}</div></span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Aucune note pour l\'instant.</p>'}
+   ${orph.length?`<h2 style="margin:16px 0 4px;font-size:15px;color:var(--warn)">Notes à reclasser</h2><p class="m" style="color:var(--mute);font-size:13px;margin:0">Matière non reconnue : supprime-les et ajoute-les à nouveau avec la bonne matière.</p>`+orph.map(n=>`<div class="row"><span class="t">${esc(n.module)}</span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join(''):''}</div>
+  <div class="card" style="margin-top:16px"><h2>Simulateur</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Quelle note il te faut à ta prochaine éval pour atteindre ton objectif dans une UE ?</p>
+   <form class="f" data-f="sim"><select name="mod" style="grid-column:1/-1">${modOpts}</select><select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input name="poids" type="number" step="0.25" min="0.25" value="1" title="Poids de l'éval dans la matière"><input name="obj" type="number" step="0.5" min="0" max="20" value="10" placeholder="Objectif"><button>Calculer</button></form><div id="simres"></div></div>`;
 };
 
 /* ---------- Absences ---------- */
@@ -354,7 +436,7 @@ const absView=()=>{
    <div class="card"><h2>Total absences</h2><div class="big" style="color:var(--cy)">${fh(heures).replace(' h','')}<small> h</small></div><p class="m" style="color:var(--mute);margin:8px 0 0">${ret} retard${ret>1?'s':''}</p></div>
   </div>
   <div class="card" style="margin-bottom:16px"><h2>Signaler</h2><form class="f" data-f="abs">
-   <input name="date" type="date" value="${isoDay(new Date())}" required><input name="module" placeholder="Module (ex : R1.07)" required>
+   <input name="date" type="date" value="${isoDay(new Date())}" required><input name="module" placeholder="Module (ex : R107)" required>
    <select name="type"><option>Absence</option><option>Retard</option></select>
    <input name="duree" type="number" step="0.25" min="0" value="1.5" placeholder="Durée (h)" required>
    <label style="display:flex;align-items:center;gap:10px;min-height:44px"><input type="checkbox" name="justif"> Justifiée</label>
@@ -377,7 +459,7 @@ V.revisions=()=>{
   const dots=b=>`<span style="font-family:var(--mono);color:var(--acc);letter-spacing:2px" title="Niveau ${b}/5">${'●'.repeat(b)}<span style="color:var(--line)">${'●'.repeat(5-b)}</span></span>`;
   return `<h1><b>Révisions</b></h1><p class="sub">Tes guides et tes flashcards</p>
   <div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides PDF</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button></div>
-  ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R1.06)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
+  ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R106)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
   :`<div class="grid"><div class="card"><h2>${fcAll?'Révision libre':'À réviser aujourd\'hui'}</h2>
    <div style="display:flex;gap:8px;margin-bottom:12px"><select data-fm><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>${fcAll?'<button class="ghost" data-fcall>Mode normal</button>':''}</div>
    ${cur?`<p class="m" style="color:var(--mute);margin:0 0 8px;display:flex;justify-content:space-between"><span>${esc(cur.module)} · reste ${deck.length}</span>${dots(cur.box||1)}</p>
@@ -581,13 +663,19 @@ document.addEventListener('submit',async e=>{
   if(k==='vlsm')return calcVlsm(d.base,d.list);
   if(k==='ipv6')return calcV6(d.a);
   if(k==='seuil'){S.set('absSeuil',+d.s||0);toast('Seuil enregistré ✓');return render()}
-  if(k==='sim'){const ls=S.get('notes',[]).filter(n=>n.ue===d.ue),sc=ls.reduce((a,n)=>a+ +n.coef,0),sn=ls.reduce((a,n)=>a+n.note*n.coef,0),c=+d.coef,o=+d.obj||10,need=(o*(sc+c)-sn)/c;
-    $('#simres').innerHTML=`<div class="big" style="font-size:44px;margin-top:6px">${need<=0?'0':need>20?'&gt;20':fx(need)}<small> /20</small></div><p style="margin:6px 0 0" class="${need>20?'ko':'ok'}">${need<=0?'Objectif déjà atteint, même avec 0 💪':need>20?'Pas atteignable sur cette seule éval, il faudra rattraper ailleurs.':'Note minimale pour atteindre '+o+'/20 dans cette UE.'}</p>`;return}
+  if(k==='sim'){
+    const mod=MODS.find(x=>x[0]===d.mod),co=mod[3][d.ue],o=+d.obj||10,pn=+d.poids||1,out=$('#simres');
+    if(!co){out.innerHTML=`<p class="ko" style="margin:8px 0 0">${mod[1]} ne compte pas dans ${UES[d.ue]}.</p>`;return}
+    const oth=ueAvg(d.ue,mod[0]),l=notesList().filter(n=>n.mod===mod[0]);
+    const P=l.reduce((a,n)=>a+ +n.poids,0),NP=l.reduce((a,n)=>a+n.note*n.poids,0);
+    const M=(o*(oth.c+co)-oth.s)/co;          // moyenne qu'il faut dans la matière
+    const need=(M*(P+pn)-NP)/pn;              // note qu'il faut à la prochaine éval
+    out.innerHTML=`<div class="big" style="font-size:44px;margin-top:6px">${need<=0?'0':need>20?'&gt;20':fx(need)}<small> /20</small></div><p style="margin:6px 0 0" class="${need>20?'ko':'ok'}">${need<=0?'Objectif déjà atteint, même avec 0 💪':need>20?'Pas atteignable avec cette seule éval : il faudra compenser dans d\'autres matières.':`Note minimale en ${mod[1]} pour viser ${o}/20 en ${UES[d.ue]}.`}</p><p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">Calcul sur les matières déjà notées (${oth.c+co} de coef). Le résultat bougera quand d'autres notes arriveront.</p>`;return}
   if(k==='pdf'){const file=f.file.files[0];if(!file)return;const p={id:uid(),module:d.module.trim(),name:file.name,size:file.size,blob:file};
     try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}
     S.set('pdfmeta',[...S.get('pdfmeta',[]),{id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}]);
     toast('Guide déposé ✓');f.reset();await uploadPendingPdfs();return listPdf()}
-  if(k==='notes'){d.note=+d.note;d.coef=+d.coef}
+  if(k==='notes'){d.note=+d.note;d.poids=+d.poids||1;d.module=d.mod}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
   d.id=uid();const l=S.get(k,[]);l.push(d);S.set(k,l);toast('Ajouté ✓');render();
@@ -595,6 +683,10 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
+  if(t.dataset.pushon!==undefined)return enablePush();
+  if(t.dataset.pushoff!==undefined)return disablePush();
+  if(t.dataset.pushtest!==undefined)return testPush();
+  if(t.dataset.pref){S.set('notifPrefs',{cours:true,ds:true,dev:true,...S.get('notifPrefs',{}),[t.dataset.pref]:t.checked});return}
   if(t.dataset.syncnow!==undefined)return syncNow();
   if(t.dataset.logout!==undefined){await sb.auth.signOut();sbUser=null;syncMsg='';toast('Déconnecté');return render()}
   if(t.dataset.sync!==undefined){const w=Object.values(S.get('edtf',{})).flatMap(w=>w.semaines||[]).find(s=>s.lundi===mondayOf(edtDay||firstDay()));return loadEdt(w?w.num:'')}
@@ -633,7 +725,7 @@ addEventListener('online',()=>{netState();toast('De retour en ligne ✓');syncNo
 netState();
 // On installe le service worker (seulement sur un vrai site en https, ex : GitHub Pages)
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!/claude/.test(location.hostname)){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  navigator.serviceWorker.register('sw.js').then(checkPush).catch(()=>{});
 }
 /* Au démarrage : on rafraîchit la semaine en cours si les données ont plus de 6 h */
 {const cur=S.get('edtf',{})[S.get('edtCur','')];if(S.get('apiUrl',API0)&&(!cur||Date.now()-new Date(cur.maj)>6*36e5))loadEdt()}
