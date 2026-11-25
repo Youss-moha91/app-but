@@ -91,6 +91,14 @@ code{font-family:var(--mono);color:var(--cy)}
 .arr{min-width:34px;padding:0;font-size:22px}
 .tl-card{padding:16px 14px 16px 8px}
 .offline{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:45;font:600 12px var(--mono);background:#3a1520;color:var(--bad);border:1px solid var(--bad);padding:5px 10px;border-radius:20px;display:none}.offline.on{display:block}
+.undo{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:6px 6px 6px 16px;border-radius:12px;display:none;align-items:center;gap:14px;z-index:61;box-shadow:0 8px 30px #000a}.undo.on{display:flex}.undo button{min-height:38px;padding:0 14px}
+.sheet-bg{position:fixed;inset:0;background:#000b;display:none;z-index:55;align-items:flex-end;justify-content:center}.sheet-bg.on{display:flex}
+.sheet{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--c,var(--acc));border-radius:20px 20px 0 0;width:100%;max-width:560px;padding:22px 20px calc(24px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
+.sheet h3{font:700 22px/1.2 var(--mono);margin:6px 0 4px}.sheet .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+@media(min-width:761px){.sheet-bg{align-items:center}.sheet{border-radius:20px}}
+.live{border-left:4px solid var(--c,var(--acc));cursor:pointer}.live .when{font:700 clamp(30px,6vw,44px)/1.05 var(--mono);color:var(--c,var(--acc));margin:4px 0 8px}
+.row.now{background:#0f2a26;border-radius:8px;padding-left:8px;padding-right:8px}
+[data-cday]{cursor:pointer}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -111,6 +119,8 @@ nav a.on{box-shadow:inset 0 2px 0 var(--acc)}
 </div>
 <div class="modal" id="modal"><header><b id="mtitle"></b><button class="ghost" id="mclose">Fermer</button></header><div class="pages" id="pages"></div></div>
 <div class="toast" id="toast"></div>
+<div class="undo" id="undo"><span id="undomsg"></span><button data-undo>Annuler</button></div>
+<div class="sheet-bg" id="sheet"><div class="sheet" id="sheetc"></div></div>
 <div class="offline" id="offline">● Hors ligne</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -304,8 +314,16 @@ const fx=n=>n===null?'—':n.toFixed(2).replace('.',',');
 const V={};
 const pad=n=>String(n).padStart(2,'0');
 const isoDay=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const rowCours=c=>`<div class="row"><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.titre)}<div class="m">${esc([c.salle,c.prof].filter(Boolean).join(' · '))}</div></span><span class="tag ${c.type==='Info'?'':'cy'}">${esc(c.type||'—')}</span></div>`;
+const rowCours=(c,day,i,now)=>`<div class="row ${now?'now':''}" ${day?`data-cday="${day}" data-ci="${i}"`:''}><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.titre)}<div class="m">${esc([c.salle,c.prof].filter(Boolean).join(' · '))}</div></span><span class="tag ${c.type==='Info'?'':'cy'}">${esc(c.type||'—')}</span></div>`;
 const API0='https://edt-but.myf-youssouf91.workers.dev';
+/* ---------- Modifier, annuler, préremplir ---------- */
+let editing=null,prefill={},lastDel=null;            // editing = {k:'devoirs', id:'…'} quand on corrige un élément
+const enEdition=k=>editing&&editing.k===k?(k==='notes'?notesList():S.get(k,[])).find(x=>x.id===editing.id)||null:null;
+const valeurs=k=>enEdition(k)||prefill[k]||{};     // valeurs à mettre dans le formulaire
+const sel=(a,b)=>String(a)===String(b)?'selected':'';
+const boutonsForm=k=>enEdition(k)?`<button>Enregistrer</button><button type="button" class="ghost" data-cancel>Annuler</button>`:'<button>Ajouter</button>';
+const btnEdit=(k,id)=>`<button class="x" data-edit="${k}" data-id="${esc(id)}" aria-label="Modifier" style="font-size:16px">✎</button>`;
+const showUndo=msg=>{$('#undomsg').textContent=msg;const u=$('#undo');u.classList.add('on');clearTimeout(showUndo.h);showUndo.h=setTimeout(()=>u.classList.remove('on'),5000)};
 let edtWeek='',loading=false;
 const loadEdt=async(num='')=>{
   const api=S.get('apiUrl',API0);if(!api||loading)return;loading=true;if(location.hash==='#edt')render();
@@ -316,20 +334,53 @@ const loadEdt=async(num='')=>{
 };
 V.accueil=()=>{
   const d=new Date(),dj=d.getDay(),today=isoDay(d);
-  const fm=Object.values(S.get('edtf',{})).flatMap(w=>w.cours).filter(c=>c.date===today);
-  const edt=fm.length?fm:S.get('edt',[]).filter(c=>+c.jour===dj).sort((a,b)=>a.debut.localeCompare(b.debut));
+  const edt=coursDu(today),nm=d.getHours()*60+d.getMinutes();
   const dv=S.get('devoirs',[]);
   const ds=dv.filter(x=>x.type==='DS'&&!x.done&&daysTo(x.date)>=0).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const urg=dv.filter(x=>!x.done&&x.type!=='DS').sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
   const g=genAvg();
   return `<h1>Salut <b>Youssouf</b></h1><p class="sub">${JOURS[dj]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} · RT1-C1</p>
+  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>
   <div class="grid">
    <div class="card"><h2>Prochain DS</h2>${ds?`<div class="big">J-${daysTo(ds.date)}</div><p style="margin:10px 0 0">${esc(ds.titre)} <span class="tag ds">${esc(ds.module)}</span></p><p class="m" style="color:var(--mute);margin:4px 0 0">${fmtD(ds.date)}</p>`:'<p class="empty">Aucun DS prévu. Ajoute-le dans Devoirs.</p>'}</div>
    <div class="card"><h2>Moyenne générale</h2><div class="big ${g!==null&&g<10?'ko':''}">${fx(g)}<small> /20</small></div>${ueAvgs().map(x=>`<div class="row"><span class="t">${UES[x.u]}</span><b class="${x.m===null?'':x.m>=10?'ok':'ko'}" style="font-family:var(--mono)">${fx(x.m)}</b></div>`).join('')}</div>
-   <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map(c=>rowCours({...c,titre:c.titre||c.module})).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
+   <div class="card"><h2>Cours du jour</h2>${edt.length?edt.map((c,i)=>rowCours(c,today,i,toMin(c.debut)<=nm&&nm<toMin(c.fin))).join(''):'<p class="empty">Pas de cours aujourd\'hui.</p>'}</div>
    <div class="card"><h2>Révisions du jour</h2><div class="big" style="color:var(--cy)">${dueCount()}<small> carte${dueCount()>1?'s':''}</small></div><p style="margin:10px 0 0"><a href="#revisions" data-gofc style="color:var(--acc)">Réviser maintenant →</a></p>${absStats().nj?`<p class="m" style="color:var(--bad);margin:8px 0 0">${fh(absStats().nj)} d'absences non justifiées</p>`:''}</div>
    <div class="card"><h2>À rendre</h2>${urg.length?urg.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${daysTo(x.date)<=2?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
   </div><div style="margin-top:16px">${syncCard()}</div>${notifCard()}`;
+};
+
+/* ---------- Accueil vivant : le cours en cours ou le prochain ---------- */
+const duree=m=>m<60?`${m} min`:`${Math.floor(m/60)}h${m%60?pad(m%60):''}`;
+const liveCard=()=>{
+  const d=new Date(),today=isoDay(d),nm=d.getHours()*60+d.getMinutes(),cs=coursDu(today);
+  const ci=cs.findIndex(c=>toMin(c.debut)<=nm&&nm<toMin(c.fin)),ni=cs.findIndex(c=>toMin(c.debut)>nm);
+  const info=c=>`<b style="font-size:17px">${esc(c.titre)}</b><div class="m" style="color:var(--mute);margin-top:2px">${esc([c.salle,c.prof,c.type].filter(Boolean).join(' · '))}</div>`;
+  if(ci>=0){const c=cs[ci],a=toMin(c.debut),b=toMin(c.fin),p=Math.round((nm-a)/(b-a)*100);
+    return `<div class="card live" style="--c:${colorOf(c.code||c.titre)}" data-cday="${today}" data-ci="${ci}"><h2 style="margin:0">● En cours</h2><div class="when">fin dans ${duree(b-nm)}</div>${info(c)}<div class="bar" style="margin-top:12px"><i style="width:${p}%;background:var(--c)"></i></div><p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">${esc(c.debut)} → ${esc(c.fin)}${ni>=0?` · ensuite ${esc(cs[ni].code||cs[ni].titre)} à ${esc(cs[ni].debut)}`:''}</p></div>`}
+  if(ni>=0){const c=cs[ni],w=toMin(c.debut)-nm;
+    return `<div class="card live" style="--c:${colorOf(c.code||c.titre)}" data-cday="${today}" data-ci="${ni}"><h2 style="margin:0">Prochain cours</h2><div class="when">${w<=120?'dans '+duree(w):'à '+esc(c.debut.replace(':','h'))}</div>${info(c)}</div>`}
+  // Plus rien aujourd'hui : on cherche le prochain jour avec cours
+  for(let k=1;k<=7;k++){const day=addD(today,k),l=coursDu(day);if(l.length){const c=l[0],nom=k===1?'Demain':new Date(day+'T12:00').toLocaleDateString('fr-FR',{weekday:'long'});
+    return `<div class="card live" style="--c:${colorOf(c.code||c.titre)}" data-cday="${day}" data-ci="0"><h2 style="margin:0">${cs.length?'Journée terminée 🎉':'Pas de cours aujourd\'hui'}</h2><div class="when" style="text-transform:capitalize">${nom} ${esc(c.debut.replace(':','h'))}</div>${info(c)}</div>`}}
+  return `<div class="card live"><h2 style="margin:0">Emploi du temps</h2><p class="empty">Aucun cours trouvé cette semaine. Ouvre l'onglet EDT pour le charger.</p></div>`;
+};
+// Toutes les 30 s, on met à jour SEULEMENT cette carte (pour ne pas effacer un formulaire en cours)
+setInterval(()=>{const w=$('#livewrap');if(w&&(location.hash||'#accueil')==='#accueil')w.innerHTML=liveCard()},30000);
+
+/* ---------- Fiche d'un cours ---------- */
+let sheetC=null;
+const openCours=(day,i)=>{
+  const c=coursDu(day)[i];if(!c)return;sheetC={...c,date:day};
+  const code=normMod(c.code||c.titre),dv=S.get('devoirs',[]).filter(x=>!x.done&&code&&normMod(x.module)===code&&daysTo(x.date)>=0);
+  const avgM=code?modAvg(code):null,mod=MODS.find(x=>x[0]===code);
+  $('#sheetc').style.setProperty('--c',colorOf(c.code||c.titre));
+  $('#sheetc').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><span class="tag" style="background:transparent;border:1px solid var(--c);color:var(--c)">${esc(c.type||'Cours')}</span><button class="x" data-close aria-label="Fermer">×</button></div>
+   <h3>${esc(c.titre)}</h3>${mod?`<p class="m" style="color:var(--mute);margin:0">${esc(mod[2])}</p>`:''}
+   <dl class="res" style="font-size:15px;margin-top:14px"><dt>Quand</dt><dd>${fmtD(day)} · ${esc(c.debut)} → ${esc(c.fin)} (${duree(toMin(c.fin)-toMin(c.debut))})</dd>${c.salle?`<dt>Salle</dt><dd>${esc(c.salle)}</dd>`:''}${c.prof?`<dt>Prof</dt><dd>${esc(c.prof)}</dd>`:''}${avgM!==null?`<dt>Ta moyenne</dt><dd class="${avgM>=10?'ok':'ko'}">${fx(avgM)} /20</dd>`:''}</dl>
+   ${dv.length?`<h2 style="margin:16px 0 4px;font-size:15px">À rendre dans cette matière</h2>`+dv.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):''}
+   <div class="acts"><button data-adddev>📌 Ajouter un devoir</button>${mod?'<button class="ghost" data-addnote>📝 Ajouter une note</button>':'<button class="ghost" data-close>Fermer</button>'}</div>`;
+  $('#sheet').classList.add('on');
 };
 /* ---------- Emploi du temps façon Pronote ---------- */
 const toMin=h=>{const [a,b]=String(h).split(':');return a*60+ +b};
@@ -362,8 +413,8 @@ const timeline=(days,compact)=>{
   return `${days.length>1?`<div class="tl tl-head" style="${cols}"><span></span>${days.map(d=>`<span class="${d===nIso?'ok':''}">${new Date(d+'T12:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'})}</span>`).join('')}</div>`:''}
   <div class="tl" style="${cols}"><div class="tl-h" style="height:${H}px">${hours.map(h=>`<span style="top:${(h*60-T0)*K}px">${h}h</span>`).join('')}</div>
   ${days.map(d=>{const cs=coursDu(d);return `<div class="tl-d" style="height:${H}px">${hours.map(h=>`<i style="top:${(h*60-T0)*K}px"></i>`).join('')}
-   ${cs.map(c=>{const a=Math.max(T0,toMin(c.debut)),b=Math.min(T1,toMin(c.fin)),col=colorOf(c.code||c.titre),long=b-a>=75;
-     return `<div class="blk" style="top:${(a-T0)*K}px;height:${(b-a)*K-3}px;left:${c._l/c._n*100}%;width:calc(${100/c._n}% - 4px);--c:${col}">${c.type&&!compact?`<em>${esc(c.type)}</em>`:''}<b>${esc(compact?(c.code||c.titre):c.titre)}</b><small>${esc(c.debut)}–${esc(c.fin)}</small>${c.salle&&(long||!compact)?`<small>${esc(c.salle)}</small>`:''}${c.prof&&long&&!compact?`<small>${esc(c.prof)}</small>`:''}</div>`}).join('')}
+   ${cs.map((c,ci)=>{const a=Math.max(T0,toMin(c.debut)),b=Math.min(T1,toMin(c.fin)),col=colorOf(c.code||c.titre),long=b-a>=75;
+     return `<div class="blk" data-cday="${d}" data-ci="${ci}" style="top:${(a-T0)*K}px;height:${(b-a)*K-3}px;left:${c._l/c._n*100}%;width:calc(${100/c._n}% - 4px);--c:${col}">${c.type&&!compact?`<em>${esc(c.type)}</em>`:''}<b>${esc(compact?(c.code||c.titre):c.titre)}</b><small>${esc(c.debut)}–${esc(c.fin)}</small>${c.salle&&(long||!compact)?`<small>${esc(c.salle)}</small>`:''}${c.prof&&long&&!compact?`<small>${esc(c.prof)}</small>`:''}</div>`}).join('')}
    ${d===nIso&&nMin>T0&&nMin<T1?`<div class="now" style="top:${(nMin-T0)*K}px"></div>`:''}
    ${!cs.length&&!compact?'<p class="empty" style="position:absolute;top:40%;width:100%;text-align:center">Pas de cours 🎉</p>':''}</div>`}).join('')}</div>`;
 };
@@ -392,31 +443,32 @@ V.edt=()=>{
 V.devoirs=()=>{
   const dv=S.get('devoirs',[]).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));
   return `<h1>Devoirs & <b>DS</b></h1><p class="sub">Triés par urgence</p>
-  <div class="card"><form class="f" data-f="devoirs">
-   <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" required><input name="module" placeholder="Module" required>
-   <select name="type"><option>Devoir</option><option>DS</option><option>Projet</option></select>
-   <input name="date" type="date" required><button>Ajouter</button></form>
-   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span><button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
+  <div class="card">${(()=>{const v=valeurs('devoirs');return `${enEdition('devoirs')?'<p class="m" style="color:var(--warn);margin:0 0 10px">✎ Modification en cours</p>':''}<form class="f" data-f="devoirs">
+   <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" value="${esc(v.titre||'')}" required><input name="module" placeholder="Module (ex : R107)" value="${esc(v.module||'')}" required>
+   <select name="type">${['Devoir','DS','Projet'].map(t=>`<option ${sel(t,v.type)}>${t}</option>`).join('')}</select>
+   <input name="date" type="date" value="${esc(v.date||'')}" required>${boutonsForm('devoirs')}</form>`})()}
+   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span>${btnEdit('devoirs',x.id)}<button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
 };
 let notesTab='notes';
 V.notes=()=>{
   const tabs=`<div class="tabs"><button class="${notesTab==='notes'?'':'ghost'}" data-nt="notes">Notes</button><button class="${notesTab==='abs'?'':'ghost'}" data-nt="abs">Absences</button></div>`;
   if(notesTab==='abs')return `<h1>Absences & <b>retards</b></h1><p class="sub">Garde un œil sur ton assiduité</p>${tabs}${absView()}`;
   const notes=notesList(),noted=MODS.filter(([c])=>modAvg(c)!==null),orph=notes.filter(n=>!n.mod);
-  const modOpts=MODS.map(([c,k,l])=>`<option value="${c}">${k} · ${esc(l)}</option>`).join('');
+  const modOpts=MODS.map(([c,k,l])=>`<option value="${c}">${k} · ${esc(l)}</option>`).join(''),v=valeurs('notes');
+  const modOptsV=MODS.map(([c,k,l])=>`<option value="${c}" ${sel(c,v.mod)}>${k} · ${esc(l)}</option>`).join('');
   return `<h1>Notes & <b>moyennes</b></h1><p class="sub">Coefficients officiels du S1 · moyennes provisoires (seules les matières déjà notées comptent)</p>${tabs}
-  <div class="card" style="margin-bottom:16px"><h2>Ajouter une note</h2><form class="f" data-f="notes">
-   <select name="mod" style="grid-column:1/-1">${modOpts}</select>
-   <input name="eval" placeholder="Évaluation (DS 1, TP 3…)" required>
-   <input name="note" type="number" step="0.01" min="0" max="20" placeholder="Note /20" required>
-   <input name="poids" type="number" step="0.25" min="0.25" value="1" title="Poids de cette éval dans la matière">
-   <button>Ajouter</button></form>
+  <div class="card" style="margin-bottom:16px"><h2>${enEdition('notes')?'✎ Modifier la note':'Ajouter une note'}</h2><form class="f" data-f="notes">
+   <select name="mod" style="grid-column:1/-1">${modOptsV}</select>
+   <input name="eval" placeholder="Évaluation (DS 1, TP 3…)" value="${esc(v.eval||'')}" required>
+   <input name="note" type="number" step="0.01" min="0" max="20" placeholder="Note /20" value="${esc(v.note??'')}" required>
+   <input name="poids" type="number" step="0.25" min="0.25" value="${esc(v.poids||1)}" title="Poids de cette éval dans la matière">
+   ${boutonsForm('notes')}</form>
    <p class="m" style="color:var(--mute);font-size:13px;margin:0">Le poids sert si une éval compte plus qu'une autre dans la même matière (ex : DS = 2, TP = 1). Sinon, laisse 1.</p></div>
   <div class="grid">${Object.entries(UES).map(([u,l])=>{const r=ueAvg(u),m=r.m,tot=MODS.reduce((a,x)=>a+(x[3][u]||0),0);
    return `<div class="card"><h2>${l}</h2><div class="big ${m!==null&&m<10?'ko':''}" style="font-size:40px">${fx(m)}<small> /20</small></div><div class="bar"><i style="width:${m===null?0:m*5}%;background:${m!==null&&m<10?'var(--bad)':'var(--acc)'}"></i></div>
    <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 6px">Basée sur ${r.c} / ${tot} de coefficients</p>
    ${MODS.filter(x=>x[3][u]).sort((a,b)=>b[3][u]-a[3][u]).map(([c,k,lab,co])=>{const a=modAvg(c);return `<div class="row" style="padding:7px 0"><span class="t" style="font-size:14px">${k} <span style="color:var(--mute)">${esc(lab)}</span></span><span class="tag cy">×${co[u]}</span><b style="font-family:var(--mono);min-width:44px;text-align:right" class="${a===null?'':a>=10?'ok':'ko'}">${a===null?'—':fx(a)}</b></div>`}).join('')}</div>`}).join('')}</div>
-  <div class="card" style="margin-top:16px"><h2>Mes notes par matière</h2>${noted.map(([c,k,lab])=>`<h2 style="margin:16px 0 4px;font-size:15px">${k} · ${esc(lab)} <span class="ok">${fx(modAvg(c))}</span></h2>`+notes.filter(n=>n.mod===c).map(n=>`<div class="row"><span class="t">${esc(n.eval)}<div class="m">poids ${esc(n.poids)}</div></span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Aucune note pour l\'instant.</p>'}
+  <div class="card" style="margin-top:16px"><h2>Mes notes par matière</h2>${noted.map(([c,k,lab])=>`<h2 style="margin:16px 0 4px;font-size:15px">${k} · ${esc(lab)} <span class="ok">${fx(modAvg(c))}</span></h2>`+notes.filter(n=>n.mod===c).map(n=>`<div class="row"><span class="t">${esc(n.eval)}<div class="m">poids ${esc(n.poids)}</div></span><b style="font-family:var(--mono)">${esc(n.note)}</b>${btnEdit('notes',n.id)}<button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Aucune note pour l\'instant.</p>'}
    ${orph.length?`<h2 style="margin:16px 0 4px;font-size:15px;color:var(--warn)">Notes à reclasser</h2><p class="m" style="color:var(--mute);font-size:13px;margin:0">Matière non reconnue : supprime-les et ajoute-les à nouveau avec la bonne matière.</p>`+orph.map(n=>`<div class="row"><span class="t">${esc(n.module)}</span><b style="font-family:var(--mono)">${esc(n.note)}</b><button class="x" data-del="notes" data-id="${esc(n.id)}" aria-label="Supprimer">×</button></div>`).join(''):''}</div>
   <div class="card" style="margin-top:16px"><h2>Simulateur</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Quelle note il te faut à ta prochaine éval pour atteindre ton objectif dans une UE ?</p>
    <form class="f" data-f="sim"><select name="mod" style="grid-column:1/-1">${modOpts}</select><select name="ue">${Object.entries(UES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input name="poids" type="number" step="0.25" min="0.25" value="1" title="Poids de l'éval dans la matière"><input name="obj" type="number" step="0.5" min="0" max="20" value="10" placeholder="Objectif"><button>Calculer</button></form><div id="simres"></div></div>`;
@@ -678,9 +730,12 @@ document.addEventListener('submit',async e=>{
   if(k==='notes'){d.note=+d.note;d.poids=+d.poids||1;d.module=d.mod}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
-  d.id=uid();const l=S.get(k,[]);l.push(d);S.set(k,l);toast('Ajouté ✓');render();
+  if(editing&&editing.k===k){S.set(k,S.get(k,[]).map(x=>x.id===editing.id?{...(k==='notes'?{}:x),...d,id:x.id}:x));editing=null;delete prefill[k];toast('Modifié ✓');return render()}
+  d.id=uid();const l=S.get(k,[]);l.push(d);S.set(k,l);delete prefill[k];toast('Ajouté ✓');render();
 });
 document.addEventListener('click',async e=>{
+  if(e.target.id==='sheet'){$('#sheet').classList.remove('on');return}
+  {const cc=e.target.closest('[data-cday]');if(cc&&!e.target.closest('button')){openCours(cc.dataset.cday,+cc.dataset.ci);return}}
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
   if(t.dataset.pushon!==undefined)return enablePush();
@@ -695,7 +750,14 @@ document.addEventListener('click',async e=>{
   if(t.dataset.shift){edtDay=addD(edtDay||firstDay(),+t.dataset.shift);return render()}
   if(t.dataset.today!==undefined){edtDay=firstDay();return render()}
   if(t.dataset.unapi!==undefined){S.set('apiUrl','');return render()}
-  if(t.dataset.del){const k=t.dataset.del;S.set(k,S.get(k,[]).filter(x=>x.id!==t.dataset.id));toast('Supprimé');return render()}
+  if(t.dataset.del){const k=t.dataset.del,l=S.get(k,[]),i=l.findIndex(x=>x.id===t.dataset.id);if(i<0)return;
+    lastDel={k,item:l[i],i};l.splice(i,1);if(editing&&editing.id===t.dataset.id)editing=null;S.set(k,l);showUndo('Supprimé');return render()}
+  if(t.dataset.undo!==undefined){if(lastDel){const l=S.get(lastDel.k,[]);l.splice(lastDel.i,0,lastDel.item);S.set(lastDel.k,l);lastDel=null;toast('Restauré ✓');render()}$('#undo').classList.remove('on');return}
+  if(t.dataset.edit){editing={k:t.dataset.edit,id:t.dataset.id};render();try{scrollTo({top:0,behavior:'smooth'})}catch(err){}return}
+  if(t.dataset.cancel!==undefined){editing=null;prefill={};return render()}
+  if(t.dataset.close!==undefined){$('#sheet').classList.remove('on');return}
+  if(t.dataset.adddev!==undefined){prefill.devoirs={module:sheetC.code||sheetC.titre,type:'Devoir',date:sheetC.date};editing=null;$('#sheet').classList.remove('on');location.hash='#devoirs';return render()}
+  if(t.dataset.addnote!==undefined){prefill.notes={mod:normMod(sheetC.code)};editing=null;notesTab='notes';$('#sheet').classList.remove('on');location.hash='#notes';return render()}
   if(t.dataset.tog){S.set('devoirs',S.get('devoirs',[]).map(x=>x.id===t.dataset.tog?{...x,done:!x.done}:x));return render()}
   if(t.dataset.rt){revTab=t.dataset.rt;return render()}
   if(t.dataset.flip!==undefined){fcBack=!fcBack;return render()}
