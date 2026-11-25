@@ -97,8 +97,11 @@ code{font-family:var(--mono);color:var(--cy)}
 .sheet h3{font:700 22px/1.2 var(--mono);margin:6px 0 4px}.sheet .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
 @media(min-width:761px){.sheet-bg{align-items:center}.sheet{border-radius:20px}}
 .live{border-left:4px solid var(--c,var(--acc));cursor:pointer}.live .when{font:700 clamp(30px,6vw,44px)/1.05 var(--mono);color:var(--c,var(--acc));margin:4px 0 8px}
-.row.now{background:#0f2a26;border-radius:8px;padding-left:8px;padding-right:8px}
+.row.cur{background:#0f2a26;border-radius:8px;margin:0 -8px;padding-left:8px;padding-right:8px;box-shadow:inset 3px 0 0 var(--acc)}
 [data-cday]{cursor:pointer}
+.lg{display:inline-block;font:700 12px var(--mono);padding:3px 8px;border-radius:6px;margin:0 4px 4px 0;white-space:nowrap}
+.pars{font:700 clamp(30px,6vw,40px)/1.1 var(--mono);color:var(--acc);margin:4px 0 10px}
+.alerte{margin-top:10px;padding:10px 12px;border-radius:10px;background:#3a1520;color:#ffb3c0;font-size:14px}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -142,7 +145,7 @@ const memPdf=[];
 /* ---------- Supabase : connexion par code + synchronisation ---------- */
 const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
 const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
-const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs']; // ce qui part dans le cloud
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet']; // ce qui part dans le cloud
 let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
 const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
 const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
@@ -232,10 +235,10 @@ const notifCard=()=>{
   if(!sb||!sbUser)return '';
   let body;
   if(!pushOK())body=isIOS()&&!isStandalone()?'<p class="m" style="color:var(--warn);margin:0">Sur iPhone, les notifications ne marchent que dans l\'app installée : Safari → Partager → « Sur l\'écran d\'accueil », puis ouvre l\'app depuis son icône.</p>':'<p class="empty">Ce navigateur ne gère pas les notifications.</p>';
-  else{const p={cours:true,ds:true,dev:true,...S.get('notifPrefs',{})};
+  else{const p={cours:true,ds:true,dev:true,trajet:true,...S.get('notifPrefs',{})};
     const opt=(k,l)=>`<label style="display:flex;align-items:center;gap:10px;min-height:40px"><input type="checkbox" data-pref="${k}" ${p[k]?'checked':''}> ${l}</label>`;
     body=`<p class="m" style="color:var(--mute);margin:0 0 8px">Chaque soir à 19h, un résumé de ta journée de demain (seulement s'il y a quelque chose).</p>
-    ${opt('cours','Mon premier cours')}${opt('ds','Mes DS')}${opt('dev','Mes devoirs à rendre')}
+    ${opt('cours','Mon premier cours')}${opt('trajet','Mon heure de départ 🚆')}${opt('ds','Mes DS')}${opt('dev','Mes devoirs à rendre')}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${pushOn?'<button class="ghost" data-pushtest>Envoyer un test</button><button class="ghost" data-pushoff>Désactiver</button>':`<button data-pushon ${pushBusy?'disabled':''}>${pushBusy?'Activation…':'Activer les notifications'}</button>`}</div>`}
   return `<div class="card" style="margin-top:16px"><h2>Rappels du soir 🔔</h2>${body}</div>`;
 };
@@ -314,7 +317,7 @@ const fx=n=>n===null?'—':n.toFixed(2).replace('.',',');
 const V={};
 const pad=n=>String(n).padStart(2,'0');
 const isoDay=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const rowCours=(c,day,i,now)=>`<div class="row ${now?'now':''}" ${day?`data-cday="${day}" data-ci="${i}"`:''}><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.titre)}<div class="m">${esc([c.salle,c.prof].filter(Boolean).join(' · '))}</div></span><span class="tag ${c.type==='Info'?'':'cy'}">${esc(c.type||'—')}</span></div>`;
+const rowCours=(c,day,i,now)=>`<div class="row ${now?'cur':''}" ${day?`data-cday="${day}" data-ci="${i}"`:''}><span class="time">${esc(c.debut)}–${esc(c.fin)}</span><span class="t">${esc(c.titre)}<div class="m">${esc([c.salle,c.prof].filter(Boolean).join(' · '))}</div></span><span class="tag ${c.type==='Info'?'':'cy'}">${esc(c.type||'—')}</span></div>`;
 const API0='https://edt-but.myf-youssouf91.workers.dev';
 /* ---------- Modifier, annuler, préremplir ---------- */
 let editing=null,prefill={},lastDel=null;            // editing = {k:'devoirs', id:'…'} quand on corrige un élément
@@ -340,7 +343,7 @@ V.accueil=()=>{
   const urg=dv.filter(x=>!x.done&&x.type!=='DS').sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
   const g=genAvg();
   return `<h1>Salut <b>Youssouf</b></h1><p class="sub">${JOURS[dj]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} · RT1-C1</p>
-  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>
+  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${trajetCard()}
   <div class="grid">
    <div class="card"><h2>Prochain DS</h2>${ds?`<div class="big">J-${daysTo(ds.date)}</div><p style="margin:10px 0 0">${esc(ds.titre)} <span class="tag ds">${esc(ds.module)}</span></p><p class="m" style="color:var(--mute);margin:4px 0 0">${fmtD(ds.date)}</p>`:'<p class="empty">Aucun DS prévu. Ajoute-le dans Devoirs.</p>'}</div>
    <div class="card"><h2>Moyenne générale</h2><div class="big ${g!==null&&g<10?'ko':''}">${fx(g)}<small> /20</small></div>${ueAvgs().map(x=>`<div class="row"><span class="t">${UES[x.u]}</span><b class="${x.m===null?'':x.m>=10?'ok':'ko'}" style="font-family:var(--mono)">${fx(x.m)}</b></div>`).join('')}</div>
@@ -367,6 +370,46 @@ const liveCard=()=>{
 };
 // Toutes les 30 s, on met à jour SEULEMENT cette carte (pour ne pas effacer un formulaire en cours)
 setInterval(()=>{const w=$('#livewrap');if(w&&(location.hash||'#accueil')==='#accueil')w.innerHTML=liveCard()},30000);
+
+/* ---------- Mon trajet (Île-de-France Mobilités, via le Worker) ---------- */
+let trajetEdit=false,trajetMode='arrivee',trajetRes={};
+const trajetCfg=()=>S.get('trajet',null);          // {de, vers, marge} : rangé dans TES données privées (Supabase), pas dans le code
+const hm=m=>`${pad(Math.floor(m/60))}:${pad(m%60)}`;
+// Le prochain « premier cours de la journée » à atteindre
+const cibleTrajet=()=>{const d=new Date(),today=isoDay(d),nm=d.getHours()*60+d.getMinutes();
+  for(let k=0;k<=7;k++){const day=addD(today,k),l=coursDu(day);if(!l.length)continue;if(k===0&&toMin(l[0].debut)<=nm)continue;return {day,c:l[0]}}return null};
+const urlTrajet=(sens,day,heure)=>{const t=trajetCfg();return (S.get('apiUrl',API0)||API0).replace(/\/+$/,'')+`/api/trajet?de=${encodeURIComponent(t.de)}&vers=${encodeURIComponent(t.vers)}&date=${day}&heure=${heure}&sens=${sens}`};
+// Petit cache en mémoire : 1 min pour les départs en temps réel, 10 min pour « quand partir »
+const fetchTrajet=async u=>{const now=Date.now(),c=trajetRes[u];if(c&&now-c.t<(u.includes('sens=depart')?6e4:6e5))return c.d;
+  const r=await fetch(u),d=await r.json();if(!r.ok||d.erreur)throw new Error(d.erreur||r.status);trajetRes[u]={t:now,d};return d};
+const badge=e=>`<span class="lg" style="background:${esc(e.couleur||'#22303e')};color:${esc(e.texte||'#fff')}">${esc(e.mode==='Bus'||e.mode==='RER'||e.mode==='Tramway'?e.mode.replace('Tramway','T')+' '+e.ligne:e.ligne)}</span>`;
+const alertesHtml=d=>(d.alertes||[]).map(a=>`<div class="alerte">⚠️ ${esc(a)}</div>`).join('');
+const etapesHtml=j=>j.etapes.map(e=>`<div class="row" style="padding:7px 0"><span class="time" style="width:100px">${esc(e.dep)}–${esc(e.arr)}</span><span class="t">${badge(e)}<div class="m">${esc(e.de)} → ${esc(e.a)}</div></span></div>`).join('')+`<p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">Arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min · ${j.corresp} correspondance${j.corresp>1?'s':''}</p>`;
+const trajetCard=()=>{
+  const t=trajetCfg();
+  if(!t||trajetEdit)return `<div class="card" id="trajet" style="margin-bottom:16px"><h2>Mon trajet 🚆</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Ta gare de départ et ton arrêt d'arrivée : l'app te dira à quelle heure partir pour ton premier cours, en temps réel.</p>
+    <form class="f" data-f="trajet" style="grid-template-columns:1fr"><input name="de" placeholder="Départ (ex : nom de ta gare)" value="${esc(t?.de||'')}" required><input name="vers" placeholder="Arrivée (ex : arrêt de bus près de l'IUT)" value="${esc(t?.vers||'')}" required>
+    <label style="display:flex;align-items:center;gap:10px">Arriver <input name="marge" type="number" min="0" max="60" value="${esc(t?.marge??10)}" style="width:84px"> min avant le cours</label>
+    <div style="display:flex;gap:8px"><button>Enregistrer</button>${t?'<button type="button" class="ghost" data-trcancel>Annuler</button>':''}</div></form>
+    <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 0">🔐 Ces infos restent privées : elles sont rangées dans ton espace Supabase, jamais dans le code public.</p></div>`;
+  return `<div class="card" id="trajet" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;flex:1">Mon trajet 🚆</h2><button class="ghost" data-trmode style="min-height:36px;padding:0 12px;font-size:14px">${trajetMode==='arrivee'?'Départs maintenant':'Pour mon cours'}</button><button class="x" data-tredit aria-label="Modifier le trajet" style="font-size:16px">✎</button></div><div id="trajetbody"><p class="empty">Calcul du trajet…</p></div></div>`;
+};
+const loadTrajet=async()=>{
+  const el=$('#trajetbody'),t=trajetCfg();if(!el||!t||trajetEdit)return;
+  try{
+    if(trajetMode==='arrivee'){
+      const cb=cibleTrajet();if(!cb){el.innerHTML='<p class="empty">Aucun cours à venir cette semaine.</p>';return}
+      const d=await fetchTrajet(urlTrajet('arrivee',cb.day,hm(toMin(cb.c.debut)-(+t.marge||10)))),j=d.trajets[0],today=isoDay(new Date());
+      const quand=cb.day===today?"aujourd'hui":cb.day===addD(today,1)?'demain':fmtD(cb.day);
+      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">Pour ${esc(cb.c.code||cb.c.titre)} à ${esc(cb.c.debut.replace(':','h'))} ${quand}</p><div class="pars">Pars à ${esc(j.depart.replace(':','h'))}</div>${etapesHtml(j)}${alertesHtml(d)}`:`<p class="empty">Aucun trajet trouvé pour arriver à l'heure.</p>${alertesHtml(d)}`;
+    }else{
+      const n=new Date(),d=await fetchTrajet(urlTrajet('depart',isoDay(n),hm(n.getHours()*60+n.getMinutes())));
+      el.innerHTML=(d.trajets.map(j=>`<div class="row"><span class="time" style="width:64px">${esc(j.depart.replace(':','h'))}</span><span class="t">${j.etapes.map(badge).join(' ')}<div class="m">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</div></span></div>`).join('')||'<p class="empty">Aucun départ trouvé.</p>')+alertesHtml(d);
+    }
+  }catch(e){el.innerHTML=`<p class="ko" style="margin:8px 0 0">Trajet indisponible : ${esc(e.message||e)}</p>`}
+};
+const redrawTrajet=()=>{const c=$('#trajet');if(c){c.outerHTML=trajetCard();loadTrajet()}};
+setInterval(()=>{if((location.hash||'#accueil')==='#accueil')loadTrajet()},120000);
 
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
@@ -447,7 +490,7 @@ V.devoirs=()=>{
    <input name="titre" placeholder="Intitulé (ex : Compte rendu TP3)" value="${esc(v.titre||'')}" required><input name="module" placeholder="Module (ex : R107)" value="${esc(v.module||'')}" required>
    <select name="type">${['Devoir','DS','Projet'].map(t=>`<option ${sel(t,v.type)}>${t}</option>`).join('')}</select>
    <input name="date" type="date" value="${esc(v.date||'')}" required>${boutonsForm('devoirs')}</form>`})()}
-   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">${esc(x.type)}</span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span>${btnEdit('devoirs',x.id)}<button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
+   ${dv.map(x=>{const j=daysTo(x.date);return `<div class="row ${x.done?'done':''}"><input type="checkbox" data-tog="${esc(x.id)}" ${x.done?'checked':''} aria-label="Fait"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)} · <b style="color:${x.type==='DS'?'var(--bad)':'var(--cy)'};font-weight:600">${esc(x.type)}</b></div></span><span class="tag ${!x.done&&j<=2?'ds':'cy'}">${j<0?'passé':'J-'+j}</span>${btnEdit('devoirs',x.id)}<button class="x" data-del="devoirs" data-id="${esc(x.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Rien pour l\'instant.</p>'}</div>`;
 };
 let notesTab='notes';
 V.notes=()=>{
@@ -561,6 +604,7 @@ const render=()=>{
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
   if(k==='revisions'&&revTab==='pdf')listPdf();
   if(k==='edt')ensureWeek(edtDay||firstDay());
+  if(k==='accueil')loadTrajet();
   if(k==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
 };
 addEventListener('hashchange',render);
@@ -708,6 +752,7 @@ $('#mclose').onclick=()=>{$('#modal').classList.remove('on');$('#pages').innerHT
 /* ---------- Événements ---------- */
 document.addEventListener('submit',async e=>{
   const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
+  if(k==='trajet'){S.set('trajet',{de:d.de.trim(),vers:d.vers.trim(),marge:+d.marge||0});trajetEdit=false;trajetRes={};toast('Trajet enregistré ✓');return render()}
   if(k==='login')return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up');
   if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
   if(k==='ip')return calcIp(d.ip);
@@ -738,6 +783,9 @@ document.addEventListener('click',async e=>{
   {const cc=e.target.closest('[data-cday]');if(cc&&!e.target.closest('button')){openCours(cc.dataset.cday,+cc.dataset.ci);return}}
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
+  if(t.dataset.tredit!==undefined){trajetEdit=true;return redrawTrajet()}
+  if(t.dataset.trcancel!==undefined){trajetEdit=false;return redrawTrajet()}
+  if(t.dataset.trmode!==undefined){trajetMode=trajetMode==='arrivee'?'depart':'arrivee';return redrawTrajet()}
   if(t.dataset.pushon!==undefined)return enablePush();
   if(t.dataset.pushoff!==undefined)return disablePush();
   if(t.dataset.pushtest!==undefined)return testPush();
