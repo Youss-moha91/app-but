@@ -107,6 +107,10 @@ code{font-family:var(--mono);color:var(--cy)}
 .tile span{font-size:12px;color:var(--mute)}.tile b{font:700 22px var(--mono)}
 a.hint{display:block;text-decoration:none;color:var(--mute);font-size:15px}a.hint b{color:var(--acc)}
 .seg{margin-bottom:18px}
+.chips{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+.chips button{min-height:30px;padding:0 10px;font-size:13px;background:transparent;color:var(--mute);border-radius:7px}
+.chips button.on{background:var(--acc);color:#04140f}
+.voie{display:inline-block;font:700 12px var(--mono);padding:2px 7px;border-radius:6px;margin:0 8px 4px -2px;border:1px solid var(--ink);color:var(--ink);white-space:nowrap}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -381,19 +385,24 @@ const liveCard=()=>{
 setInterval(()=>{const w=$('#livewrap');if(w&&(location.hash||'#accueil')==='#accueil')w.innerHTML=liveCard()},30000);
 
 /* ---------- Mon trajet (Île-de-France Mobilités, via le Worker) ---------- */
-let trajetEdit=false,trajetMode='arrivee',trajetRes={};
+let trajetEdit=false,trajetMode='auto',trajetRes={};
 const trajetCfg=()=>S.get('trajet',null);          // {de, vers, marge} : rangé dans TES données privées (Supabase), pas dans le code
 const hm=m=>`${pad(Math.floor(m/60))}:${pad(m%60)}`;
 // Le prochain « premier cours de la journée » à atteindre
 const cibleTrajet=()=>{const d=new Date(),today=isoDay(d),nm=d.getHours()*60+d.getMinutes();
   for(let k=0;k<=7;k++){const day=addD(today,k),l=coursDu(day);if(!l.length)continue;if(k===0&&toMin(l[0].debut)<=nm)continue;return {day,c:l[0]}}return null};
-const urlTrajet=(sens,day,heure)=>{const t=trajetCfg();return (S.get('apiUrl',API0)||API0).replace(/\/+$/,'')+`/api/trajet?de=${encodeURIComponent(t.de)}&vers=${encodeURIComponent(t.vers)}&date=${day}&heure=${heure}&sens=${sens}`};
+const urlTrajet=(sens,day,heure,retour)=>{const t=trajetCfg(),a=retour?t.vers:t.de,b=retour?t.de:t.vers;return (S.get('apiUrl',API0)||API0).replace(/\/+$/,'')+`/api/trajet?de=${encodeURIComponent(a)}&vers=${encodeURIComponent(b)}&date=${day}&heure=${heure}&sens=${sens}`};
+// Aller ou retour ? Avant (ou loin de) tes cours → aller ; pendant et jusqu'à 3 h après ton dernier cours → retour
+const modeAuto=()=>{const d=new Date(),nm=d.getHours()*60+d.getMinutes(),l=coursDu(isoDay(d));
+  return l.length&&nm>=toMin(l[0].debut)-30&&nm<=toMin(l[l.length-1].fin)+180?'retour':'aller'};
+const modeTrajet=()=>trajetMode==='auto'?modeAuto():trajetMode;
+const voieHtml=e=>e.voie?`<span class="voie">voie ${esc(e.voie)}</span>`:'';
 // Petit cache en mémoire : 1 min pour les départs en temps réel, 10 min pour « quand partir »
 const fetchTrajet=async u=>{const now=Date.now(),c=trajetRes[u];if(c&&now-c.t<(u.includes('sens=depart')?6e4:6e5))return c.d;
   const r=await fetch(u),d=await r.json();if(!r.ok||d.erreur)throw new Error(d.erreur||r.status);trajetRes[u]={t:now,d};return d};
 const badge=e=>`<span class="lg" style="background:${esc(e.couleur||'#22303e')};color:${esc(e.texte||'#fff')}">${esc(e.mode==='Bus'||e.mode==='RER'||e.mode==='Tramway'?e.mode.replace('Tramway','T')+' '+e.ligne:e.ligne)}</span>`;
 const alertesHtml=d=>(d.alertes||[]).map(a=>`<div class="alerte">⚠️ ${esc(a)}</div>`).join('');
-const etapesHtml=j=>j.etapes.map(e=>`<div class="row" style="padding:7px 0"><span class="time" style="width:100px">${esc(e.dep)}–${esc(e.arr)}</span><span class="t">${badge(e)}<div class="m">${esc(e.de)} → ${esc(e.a)}</div></span></div>`).join('')+`<p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">Arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min · ${j.corresp} correspondance${j.corresp>1?'s':''}</p>`;
+const etapesHtml=j=>j.etapes.map(e=>`<div class="row" style="padding:7px 0"><span class="time" style="width:100px">${esc(e.dep)}–${esc(e.arr)}</span><span class="t">${badge(e)}${voieHtml(e)}<div class="m">${esc(e.de)} → ${esc(e.a)}</div></span></div>`).join('')+`<p class="m" style="color:var(--mute);font-size:13px;margin:6px 0 0">Arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min · ${j.corresp} correspondance${j.corresp>1?'s':''}</p>`;
 const trajetForm=()=>{const t=trajetCfg();
   return `<div class="card" style="margin-bottom:16px"><h2>Mon itinéraire 🚆</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Ta gare de départ et ton arrêt d'arrivée : l'accueil te dira à quelle heure partir pour ton premier cours, en temps réel.</p>
     <form class="f" data-f="trajet" style="grid-template-columns:1fr"><input name="de" placeholder="Départ (ex : nom de ta gare)" value="${esc(t?.de||'')}" required><input name="vers" placeholder="Arrivée (ex : arrêt de bus près de l'IUT)" value="${esc(t?.vers||'')}" required>
@@ -402,23 +411,33 @@ const trajetForm=()=>{const t=trajetCfg();
     <p class="m" style="color:var(--mute);font-size:13px;margin:8px 0 0">🔐 Rangé dans ton espace privé Supabase, jamais dans le code public.</p></div>`};
 const trajetCard=()=>{
   if(!trajetCfg())return `<a class="card hint" href="#moi" style="margin-bottom:16px">🚆 Configure ton itinéraire dans <b>Moi</b> pour savoir à quelle heure partir →</a>`;
-  return `<div class="card" id="trajet" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px"><h2 style="margin:0;flex:1">Mon trajet</h2><button class="ghost" data-trmode style="min-height:34px;padding:0 12px;font-size:13px">${trajetMode==='arrivee'?'Départs maintenant':'Pour mon cours'}</button></div><div id="trajetbody"><p class="empty">Calcul du trajet…</p></div></div>`;
+  return `<div class="card" id="trajet" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;flex:1">Mon trajet</h2><div class="chips">${[['aller','Aller'],['retour','Retour'],['maintenant','Maintenant']].map(([k,l])=>`<button class="${modeTrajet()===k?'on':''}" data-trm="${k}">${l}</button>`).join('')}</div></div><div id="trajetbody"><p class="empty">Calcul du trajet…</p></div></div>`;
 };
 
+const ligneCompacte=j=>`<div>${j.etapes.map(e=>badge(e)+voieHtml(e)).join('')}<span class="m" style="color:var(--mute);font-size:13px">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</span></div><details style="margin-top:6px"><summary class="m" style="color:var(--cy);cursor:pointer;font-size:14px">Voir les étapes</summary>${etapesHtml(j)}</details>`;
+const listeDeparts=ts=>ts.map(j=>`<div class="row"><span class="time" style="width:64px">${esc(j.depart.replace(':','h'))}</span><span class="t">${j.etapes.map(e=>badge(e)+voieHtml(e)).join('')}<div class="m">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</div></span></div>`).join('');
 const loadTrajet=async()=>{
-  const el=$('#trajetbody'),t=trajetCfg();if(!el||!t||trajetEdit)return;
+  const el=$('#trajetbody'),t=trajetCfg();if(!el||!t)return;
+  const mode=modeTrajet(),n=new Date(),today=isoDay(n),nm=n.getHours()*60+n.getMinutes();
   try{
-    if(trajetMode==='arrivee'){
+    if(mode==='aller'){
       const cb=cibleTrajet();if(!cb){el.innerHTML='<p class="empty">Aucun cours à venir cette semaine.</p>';return}
-      const d=await fetchTrajet(urlTrajet('arrivee',cb.day,hm(toMin(cb.c.debut)-(+t.marge||10)))),j=d.trajets[0],today=isoDay(new Date());
+      const d=await fetchTrajet(urlTrajet('arrivee',cb.day,hm(toMin(cb.c.debut)-(+t.marge||10)))),j=d.trajets[0];
       const quand=cb.day===today?"aujourd'hui":cb.day===addD(today,1)?'demain':fmtD(cb.day);
-      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">Pour ${esc(cb.c.code||cb.c.titre)} à ${esc(cb.c.debut.replace(':','h'))} ${quand}</p><div class="pars">Pars à ${esc(j.depart.replace(':','h'))}</div><div>${j.etapes.map(badge).join('')}<span class="m" style="color:var(--mute);font-size:13px">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</span></div><details style="margin-top:6px"><summary class="m" style="color:var(--cy);cursor:pointer;font-size:14px">Voir les étapes</summary>${etapesHtml(j)}</details>${alertesHtml(d)}`:`<p class="empty">Aucun trajet trouvé pour arriver à l'heure.</p>${alertesHtml(d)}`;
+      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">Pour ${esc(cb.c.code||cb.c.titre)} à ${esc(cb.c.debut.replace(':','h'))} ${quand}</p><div class="pars">Pars à ${esc(j.depart.replace(':','h'))}</div>${ligneCompacte(j)}${alertesHtml(d)}`:`<p class="empty">Aucun trajet trouvé pour arriver à l'heure.</p>${alertesHtml(d)}`;
+    }else if(mode==='retour'){
+      const l=coursDu(today);
+      if(!l.length){el.innerHTML='<p class="empty">Pas de cours aujourd\'hui : rien à rentrer 😄 Utilise « Maintenant » si besoin.</p>';return}
+      const fin=toMin(l[l.length-1].fin),h=Math.max(nm,fin+5);     // 5 min pour sortir du bâtiment
+      const d=await fetchTrajet(urlTrajet('depart',today,hm(h),true)),[j,...autres]=d.trajets;
+      el.innerHTML=j?`<p class="m" style="color:var(--mute);margin:8px 0 0">${nm<fin?`Fin des cours à ${esc(l[l.length-1].fin.replace(':','h'))}`:'Les cours sont finis'} · retour vers ${esc(t.de)}</p><div class="pars">Départ ${esc(j.depart.replace(':','h'))}</div>${ligneCompacte(j)}${autres.length?`<p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">Sinon : ${autres.map(a=>esc(a.depart.replace(':','h'))).join(' · ')}</p>`:''}${alertesHtml(d)}`:`<p class="empty">Aucun trajet retour trouvé.</p>${alertesHtml(d)}`;
     }else{
-      const n=new Date(),d=await fetchTrajet(urlTrajet('depart',isoDay(n),hm(n.getHours()*60+n.getMinutes())));
-      el.innerHTML=(d.trajets.map(j=>`<div class="row"><span class="time" style="width:64px">${esc(j.depart.replace(':','h'))}</span><span class="t">${j.etapes.map(badge).join(' ')}<div class="m">arrivée ${esc(j.arrivee.replace(':','h'))} · ${j.duree} min</div></span></div>`).join('')||'<p class="empty">Aucun départ trouvé.</p>')+alertesHtml(d);
+      const retour=modeAuto()==='retour',d=await fetchTrajet(urlTrajet('depart',today,hm(nm),retour));
+      el.innerHTML=`<p class="m" style="color:var(--mute);margin:8px 0 4px">Départs maintenant depuis ${esc(retour?t.vers:t.de)}</p>`+(listeDeparts(d.trajets)||'<p class="empty">Aucun départ trouvé.</p>')+alertesHtml(d);
     }
   }catch(e){el.innerHTML=`<p class="ko" style="margin:8px 0 0">Trajet indisponible : ${esc(e.message||e)}</p>`}
 };
+
 const redrawTrajet=()=>{const c=$('#trajet');if(c){c.outerHTML=trajetCard();loadTrajet()}};
 setInterval(()=>{if((location.hash||'#accueil')==='#accueil')loadTrajet()},120000);
 
@@ -814,7 +833,7 @@ document.addEventListener('click',async e=>{
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
   if(t.dataset.et){etudesTab=t.dataset.et;if(location.hash!=='#etudes')location.hash='#etudes';return render()}
-  if(t.dataset.trmode!==undefined){trajetMode=trajetMode==='arrivee'?'depart':'arrivee';return redrawTrajet()}
+  if(t.dataset.trm){trajetMode=t.dataset.trm;return redrawTrajet()}
   if(t.dataset.pushon!==undefined)return enablePush();
   if(t.dataset.pushoff!==undefined)return disablePush();
   if(t.dataset.pushtest!==undefined)return testPush();
