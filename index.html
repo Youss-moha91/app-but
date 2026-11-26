@@ -111,6 +111,13 @@ a.hint{display:block;text-decoration:none;color:var(--mute);font-size:15px}a.hin
 .chips button{min-height:30px;padding:0 10px;font-size:13px;background:transparent;color:var(--mute);border-radius:7px}
 .chips button.on{background:var(--acc);color:#04140f}
 .voie{display:inline-block;font:700 12px var(--mono);padding:2px 7px;border-radius:6px;margin:0 8px 4px -2px;border:1px solid var(--ink);color:var(--ink);white-space:nowrap}
+body.gate nav{display:none}body.gate .app{grid-template-columns:1fr}body.gate main{max-width:460px;margin:0 auto;padding-top:calc(60px + env(safe-area-inset-top))}
+.login{text-align:center}.login .card{text-align:left;margin-top:22px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:13px;color:var(--mute)}.legend i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.info{border:1px solid rgba(58,215,255,.45);background:rgba(58,215,255,.08);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14px;line-height:1.45}
+.card.ann{border-color:var(--acc);background:linear-gradient(135deg,rgba(0,229,160,.10),transparent 60%),var(--card)}
+.blk.inf::after{content:'ℹ';position:absolute;top:3px;right:5px;width:16px;height:16px;border-radius:50%;background:var(--cy);color:#000;font:700 11px/16px var(--mono);text-align:center}
+#nav a.dot{position:relative}#nav a.dot::after{content:'';position:absolute;top:6px;right:calc(50% - 16px);width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--bg)}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -154,7 +161,7 @@ const memPdf=[];
 /* ---------- Supabase : connexion par code + synchronisation ---------- */
 const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
 const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
-const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet','profil']; // ce qui part dans le cloud
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet','profil','sessions','objectifs','annLu']; // ce qui part dans le cloud
 let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
 const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
 const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
@@ -183,19 +190,56 @@ const sbInit=async()=>{
   try{
     sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
     const {data:{session}}=await sb.auth.getSession();sbUser=session?.user||null;
-    sb.auth.onAuthStateChange((_e,s)=>{sbUser=s?.user||null});
-    if(sbUser)syncNow();else render();
+    sb.auth.onAuthStateChange((ev,s)=>{sbUser=s?.user||null;if(ev==='PASSWORD_RECOVERY'){recovery=true;render()}});
+    if(sbUser){await prendreCompte(sbUser);debutSession(sbUser);syncNow()}
+    render();
   }catch(e){sb=null}
 };
 // Quand tu reviens sur l'app (changement d'appareil, d'onglet…), on resynchronise
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncNow();chargerAnnonces()}});
 
 // Connexion par e-mail + mot de passe (aucun e-mail envoyé : "Confirm email" est désactivé dans Supabase)
+/* ---------- Connexion obligatoire + mots de passe ---------- */
+let recovery=false,oubli=false,isAdmin=null;
+const sessionLocale=()=>{try{return Object.keys(localStorage).some(k=>/^sb-.*-auth-token$/.test(k))}catch(e){return false}};
+const sbPret=()=>typeof window!=='undefined'&&!!window.supabase&&!SB_URL.startsWith('__');
+// Tant qu'on n'est pas connecté, on n'affiche que l'écran de connexion
+const doitSeConnecter=()=>sbPret()&&(recovery||(sb?!sbUser:!sessionLocale()));
+// Efface les données d'un compte sur CET appareil (déconnexion ou changement de compte)
+const viderLocal=async()=>{for(const k of [...SYNC_KEYS,'_mod','_sync','_admin','annonces','edtInfos','pomo'])S.raw(k,null);try{await tx('readwrite',s=>s.clear())}catch(e){memPdf.length=0}};
+const prendreCompte=async user=>{const prev=S.get('_uid',null);if(prev&&prev!==user.id)await viderLocal();S.raw('_uid',user.id)};
+const LOGO_SVG=`<svg width="64" height="64" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#10302b"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="#00e5a0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>`;
+const vLogin=()=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">App <b>BUT R&amp;T</b></h1><p class="sub">Connecte-toi pour accéder à ton espace</p>
+  ${oubli?`<div class="card"><h2>Mot de passe oublié</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Tape ton e-mail : si le compte existe, tu recevras un lien pour choisir un nouveau mot de passe.</p><form class="f" data-f="reset" style="grid-template-columns:1fr"><input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required><button>Envoyer le lien</button></form><p style="margin:10px 0 0"><a href="#" data-oubli style="color:var(--cy)">← Retour à la connexion</a></p><p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">Pas reçu ? Demande à l'admin de l'app de te donner un mot de passe provisoire.</p></div>`
+  :`<div class="card"><form class="f" data-f="login" style="grid-template-columns:1fr"><input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required><input name="pw" type="password" autocomplete="current-password" minlength="8" placeholder="Mot de passe (8 caractères min.)" required><button name="act" value="in">Se connecter</button><button name="act" value="up" class="ghost">Créer un compte</button></form><p style="margin:12px 0 0;text-align:center"><a href="#" data-oubli style="color:var(--cy)">Mot de passe oublié ?</a></p></div>`}
+  <p class="m" style="color:var(--mute);font-size:13px;text-align:center;margin-top:16px">Tes données sont privées : personne d'autre ne peut les voir.</p></div>`;
+const vNouveauMdp=()=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">Nouveau <b>mot de passe</b></h1><p class="sub">Choisis ton nouveau mot de passe</p>
+  <div class="card"><form class="f" data-f="newpw" style="grid-template-columns:1fr"><input name="pw" type="password" autocomplete="new-password" minlength="8" placeholder="Nouveau mot de passe" required><input name="pw2" type="password" autocomplete="new-password" minlength="8" placeholder="Confirme-le" required><button>Enregistrer</button></form></div></div>`;
+const changerMdp=async(pw,pw2)=>{
+  if(pw!==pw2){toast('Les deux mots de passe sont différents');return false}
+  const {error}=await sb.auth.updateUser({password:pw});
+  if(error){toast('Erreur : '+error.message);return false}
+  toast('Mot de passe changé ✓');return true;
+};
+const securiteCard=()=>!sbUser?'':`<div class="card" style="margin-bottom:16px"><h2>Sécurité 🔐</h2><form class="f" data-f="chpw" style="grid-template-columns:1fr"><input name="pw" type="password" autocomplete="new-password" minlength="8" placeholder="Nouveau mot de passe" required><input name="pw2" type="password" autocomplete="new-password" minlength="8" placeholder="Confirme-le" required><button>Changer le mot de passe</button></form></div>`;
+// Espace admin : visible seulement si le Worker confirme que tu es l'admin (ADMIN_ID)
+const apiBase=()=>(S.get('apiUrl',API0)||API0).replace(/\/+$/,'');
+const appelAdmin=async(chemin,corps)=>{const {data:{session}}=await sb.auth.getSession();
+  const r=await fetch(apiBase()+chemin,{method:corps?'POST':'GET',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:corps?JSON.stringify(corps):undefined});
+  return {ok:r.ok,d:await r.json().catch(()=>({}))}};
+// Est-ce le compte admin ? On garde la réponse sur l'appareil pour afficher le bon écran tout de suite, puis le Worker confirme.
+const checkAdmin=async()=>{if(!sbUser)return;const avant=isAdmin;
+  try{const {ok,d}=await appelAdmin('/api/admin/etat');isAdmin=ok;if(ok)adm=d}catch(e){if(isAdmin===null)isAdmin=false;if(!isAdmin)chargerAnnonces();return}
+  S.raw('_admin',isAdmin?sbUser.id:null);if(isAdmin!==avant){buildNav();if(isAdmin&&!AV[location.hash.slice(1)])location.hash='#annonces';render()}else if(isAdmin)render();
+  if(!isAdmin)chargerAnnonces()};
+const debutSession=user=>{isAdmin=S.get('_admin',null)===user.id?true:null;buildNav();checkAdmin()};
+
+
 const login=async(email,password,create)=>{
   const {data,error}=create?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
   if(error){toast(/invalid/i.test(error.message)?'E-mail ou mot de passe incorrect':'Erreur : '+error.message);return}
   if(!data.session){toast('Compte créé, mais Supabase demande une confirmation par e-mail : désactive « Confirm email »');return}
-  sbUser=data.user;toast(create?'Compte créé ✓':'Connecté ✓');syncNow();
+  await prendreCompte(data.user);sbUser=data.user;debutSession(data.user);toast(create?'Compte créé ✓':'Connecté ✓');render();syncNow();
 };
 const syncCard=()=>{
   if(!sb)return `<div class="card"><h2>Synchronisation</h2><p class="empty">${SB_URL.startsWith('__')?'Supabase pas encore configuré.':'Synchronisation indisponible ici (ouvre l\'app depuis ton site GitHub).'}</p></div>`;
@@ -244,10 +288,10 @@ const notifCard=()=>{
   if(!sb||!sbUser)return '';
   let body;
   if(!pushOK())body=isIOS()&&!isStandalone()?'<p class="m" style="color:var(--warn);margin:0">Sur iPhone, les notifications ne marchent que dans l\'app installée : Safari → Partager → « Sur l\'écran d\'accueil », puis ouvre l\'app depuis son icône.</p>':'<p class="empty">Ce navigateur ne gère pas les notifications.</p>';
-  else{const p={cours:true,ds:true,dev:true,trajet:true,...S.get('notifPrefs',{})};
+  else{const p={cours:true,ds:true,dev:true,trajet:true,edt:true,annonces:true,...S.get('notifPrefs',{})};
     const opt=(k,l)=>`<label style="display:flex;align-items:center;gap:10px;min-height:40px"><input type="checkbox" data-pref="${k}" ${p[k]?'checked':''}> ${l}</label>`;
     body=`<p class="m" style="color:var(--mute);margin:0 0 8px">Chaque soir à 19h, un résumé de ta journée de demain (seulement s'il y a quelque chose).</p>
-    ${opt('cours','Mon premier cours')}${opt('trajet','Mon heure de départ 🚆')}${opt('ds','Mes DS')}${opt('dev','Mes devoirs à rendre')}
+    ${opt('annonces','Annonces 📣')}${opt('edt','Changements d\'emploi du temps 📅')}${opt('cours','Mon premier cours')}${opt('trajet','Mon heure de départ 🚆')}${opt('ds','Mes DS')}${opt('dev','Mes devoirs à rendre')}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${pushOn?'<button class="ghost" data-pushtest>Envoyer un test</button><button class="ghost" data-pushoff>Désactiver</button>':`<button data-pushon ${pushBusy?'disabled':''}>${pushBusy?'Activation…':'Activer les notifications'}</button>`}</div>`}
   return `<div class="card" style="margin-top:16px"><h2>Rappels du soir 🔔</h2>${body}</div>`;
 };
@@ -306,14 +350,19 @@ const ic={
  revisions:'<path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zm0 0a2 2 0 002 2h13"/>',
  reseau:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>',
  etudes:'<path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zm0 0a2 2 0 002 2h13"/><path d="M9 8h6M9 12h4"/>',
- moi:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>'
+ moi:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+ annonces:'<path d="M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1zM16 8a5 5 0 010 8M19 5a9 9 0 010 14"/>',
+ infos:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M12 14v4M12 12.5v.01"/>',
+ comptes:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21c0-3.9 3.1-6 7-6s7 2.1 7 6M16 4.5a3.5 3.5 0 010 7M22 21c0-3-1.6-5-4.5-5.7"/>',
+ stats:'<path d="M4 20V14M10 20V8M16 20V11M22 20H2M4 9l6-5 6 4 6-5"/>'
 };
 const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['etudes','Études'],['moi','Moi']];
 // Devoirs, Révisions et Réseau sont regroupés dans l'onglet « Études » (les anciens liens #devoirs… marchent toujours)
 const SOUS_ETUDES={devoirs:'Devoirs',revisions:'Révisions',reseau:'Réseau'};
 let etudesTab='devoirs';
 const profil=()=>({prenom:'',groupe:'RT1-C1',...S.get('profil',{})});
-$('#nav').innerHTML='<div class="brand"><svg width="30" height="30" style="vertical-align:-8px;margin-right:8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10302b"/><stop offset="1" stop-color="#0b0f14"/></linearGradient><linearGradient id="ln2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ad7ff"/><stop offset="1" stop-color="#00e5a0"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bg2)"/><rect x="10" y="10" width="492" height="492" rx="104" fill="none" stroke="#22303e" stroke-width="4"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="url(#ln2)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>BUT<span>_R&amp;T</span></div>'+NAV.map(([k,l])=>`<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[k]}</svg>${l}</a>`).join('');
+const buildNav=()=>{$('#nav').innerHTML='<div class="brand"><svg width="30" height="30" style="vertical-align:-8px;margin-right:8px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10302b"/><stop offset="1" stop-color="#0b0f14"/></linearGradient><linearGradient id="ln2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ad7ff"/><stop offset="1" stop-color="#00e5a0"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bg2)"/><rect x="10" y="10" width="492" height="492" rx="104" fill="none" stroke="#22303e" stroke-width="4"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="url(#ln2)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>BUT<span>_R&amp;T</span></div>'+(isAdmin?ADMIN_NAV:NAV).map(([k,l])=>`<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[k]}</svg>${l}</a>`).join('');try{majBadge()}catch(e){}};
+buildNav();
 
 /* ---------- Calculs de moyennes ---------- */
 // "R1.14", "r114", "SAÉ 1.4" → code interne ("R114", "SAE14")
@@ -321,9 +370,9 @@ const normMod=s=>{s=String(s||'');let m=s.match(/R\s*1\.?\s*(\d{2})/i);if(m)retu
 // Les anciennes notes (avant les coefficients officiels) sont converties à la lecture
 const notesList=()=>S.get('notes',[]).map(n=>n.mod!==undefined?n:{...n,mod:normMod(n.module),eval:'Éval',poids:1}).map(n=>({...n,mod:MODS.some(x=>x[0]===n.mod)?n.mod:null}));
 // Moyenne d'une matière : moyenne pondérée de ses évals
-const modAvg=code=>{const l=notesList().filter(n=>n.mod===code),p=l.reduce((a,n)=>a+ +n.poids,0);return p?l.reduce((a,n)=>a+n.note*n.poids,0)/p:null};
+const modAvg=(code,liste)=>{const l=(liste||notesList()).filter(n=>n.mod===code),p=l.reduce((a,n)=>a+ +n.poids,0);return p?l.reduce((a,n)=>a+n.note*n.poids,0)/p:null};
 // Moyenne d'une UE : moyenne des matières notées, pondérée par leur coef dans cette UE
-const ueAvg=(u,skip)=>{let s=0,c=0;for(const [code,,,co] of MODS){if(!co[u]||code===skip)continue;const m=modAvg(code);if(m===null)continue;s+=m*co[u];c+=co[u]}return {m:c?s/c:null,c,s}};
+const ueAvg=(u,skip,liste)=>{let s=0,c=0;for(const [code,,,co] of MODS){if(!co[u]||code===skip)continue;const m=modAvg(code,liste);if(m===null)continue;s+=m*co[u];c+=co[u]}return {m:c?s/c:null,c,s}};
 const ueAvgs=()=>Object.keys(UES).map(u=>({u,m:ueAvg(u).m}));
 const genAvg=()=>{const v=ueAvgs().filter(x=>x.m!==null);return v.length?v.reduce((a,x)=>a+x.m,0)/v.length:null};
 const fx=n=>n===null?'—':n.toFixed(2).replace('.',',');
@@ -356,7 +405,8 @@ V.accueil=()=>{
   const avenir=dv.filter(x=>!x.done&&daysTo(x.date)>=0).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
   const g=genAvg(),due=dueCount(),nj=absStats().nj;
   return `<h1>Salut${p.prenom?` <b>${esc(p.prenom)}</b>`:' 👋'}</h1><p class="sub">${JOURS[d.getDay()]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}${p.groupe?' · '+esc(p.groupe):''}</p>
-  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${trajetCard()}
+  ${(()=>{const nl=nonLues();return nl.length?`<div class="card ann" style="margin-bottom:16px"><h2>📣 ${nl.length>1?nl.length+' nouvelles annonces':'Nouvelle annonce'}</h2><b>${esc(nl[0].titre)}</b><p class="m" style="margin:6px 0 12px;white-space:pre-wrap">${esc(nl[0].texte)}</p><div style="display:flex;gap:8px"><button data-annlu>Lu ✓</button>${nl.length>1?'<button class="ghost" onclick="location.hash=\'moi\'">Tout voir</button>':''}</div></div>`:''})()}
+  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${[isoDay(d),addD(isoDay(d),1)].flatMap(infosDu).map(i=>infoHtml(i,true)).join('')}${trajetCard()}
   <div class="card" style="margin-bottom:16px"><h2>À venir</h2>${avenir.length?avenir.map(x=>{const j=daysTo(x.date);return `<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span>${x.type==='DS'?'<span class="tag ds">DS</span>':''}<span class="tag ${j<=2?'ds':'cy'}">${j===0?"auj.":'J-'+j}</span></div>`}).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
   <div class="tiles">
    <a class="tile" href="#notes"><span>Moyenne</span><b class="${g!==null&&g<10?'ko':'ok'}">${fx(g)}</b></a>
@@ -450,10 +500,11 @@ V.moi=()=>{const p=profil();
   return `<h1>À propos de <b>moi</b></h1><p class="sub">Ton profil, ta connexion et tes réglages</p>
   <div class="card" style="margin-bottom:16px"><h2>Profil</h2><form class="f" data-f="profil"><input name="prenom" placeholder="Prénom" value="${esc(p.prenom)}"><input name="groupe" placeholder="Groupe (ex : RT1-C1)" value="${esc(p.groupe)}"><button>Enregistrer</button></form>
    <p class="m" style="color:var(--mute);font-size:13px;margin:0">Ton prénom s'affiche sur l'accueil. L'emploi du temps Formadep reste celui de RT1-C1.</p></div>
-  <div style="margin-bottom:16px">${syncCard()}</div>
+  ${annoncesCard()}<div style="margin-bottom:16px">${syncCard()}</div>
+  ${securiteCard()}
   ${trajetForm()}
   ${notifCard().replace('style="margin-top:16px"','style="margin-bottom:16px"')}
-  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.2 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
+  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.4 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
 };
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
@@ -465,6 +516,7 @@ const openCours=(day,i)=>{
   $('#sheetc').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><span class="tag" style="background:transparent;border:1px solid var(--c);color:var(--c)">${esc(c.type||'Cours')}</span><button class="x" data-close aria-label="Fermer">×</button></div>
    <h3>${esc(c.titre)}</h3>${mod?`<p class="m" style="color:var(--mute);margin:0">${esc(mod[2])}</p>`:''}
    <dl class="res" style="font-size:15px;margin-top:14px"><dt>Quand</dt><dd>${fmtD(day)} · ${esc(c.debut)} → ${esc(c.fin)} (${duree(toMin(c.fin)-toMin(c.debut))})</dd>${c.salle?`<dt>Salle</dt><dd>${esc(c.salle)}</dd>`:''}${c.prof?`<dt>Prof</dt><dd>${esc(c.prof)}</dd>`:''}${avgM!==null?`<dt>Ta moyenne</dt><dd class="${avgM>=10?'ok':'ko'}">${fx(avgM)} /20</dd>`:''}</dl>
+   ${infosDu(day).filter(x=>!x.debut||x.debut===c.debut).map(i=>infoHtml(i,false)).join('')}
    ${dv.length?`<h2 style="margin:16px 0 4px;font-size:15px">À rendre dans cette matière</h2>`+dv.map(x=>`<div class="row"><span class="t">${esc(x.titre)}<div class="m">${fmtD(x.date)}</div></span><span class="tag ${x.type==='DS'?'ds':''}">J-${daysTo(x.date)}</span></div>`).join(''):''}
    <div class="acts"><button data-adddev>📌 Ajouter un devoir</button>${mod?'<button class="ghost" data-addnote>📝 Ajouter une note</button>':'<button class="ghost" data-close>Fermer</button>'}</div>`;
   $('#sheet').classList.add('on');
@@ -501,7 +553,8 @@ const timeline=(days,compact)=>{
   <div class="tl" style="${cols}"><div class="tl-h" style="height:${H}px">${hours.map(h=>`<span style="top:${(h*60-T0)*K}px">${h}h</span>`).join('')}</div>
   ${days.map(d=>{const cs=coursDu(d);return `<div class="tl-d" style="height:${H}px">${hours.map(h=>`<i style="top:${(h*60-T0)*K}px"></i>`).join('')}
    ${cs.map((c,ci)=>{const a=Math.max(T0,toMin(c.debut)),b=Math.min(T1,toMin(c.fin)),col=colorOf(c.code||c.titre),long=b-a>=75;
-     return `<div class="blk" data-cday="${d}" data-ci="${ci}" style="top:${(a-T0)*K}px;height:${(b-a)*K-3}px;left:${c._l/c._n*100}%;width:calc(${100/c._n}% - 4px);--c:${col}">${c.type&&!compact?`<em>${esc(c.type)}</em>`:''}<b>${esc(compact?(c.code||c.titre):c.titre)}</b><small>${esc(c.debut)}–${esc(c.fin)}</small>${c.salle&&(long||!compact)?`<small>${esc(c.salle)}</small>`:''}${c.prof&&long&&!compact?`<small>${esc(c.prof)}</small>`:''}</div>`}).join('')}
+     const inf=infosDu(d).some(x=>x.debut===c.debut);
+     return `<div class="blk${inf?' inf':''}" data-cday="${d}" data-ci="${ci}" style="top:${(a-T0)*K}px;height:${(b-a)*K-3}px;left:${c._l/c._n*100}%;width:calc(${100/c._n}% - 4px);--c:${col}">${c.type&&!compact?`<em>${esc(c.type)}</em>`:''}<b>${esc(compact?(c.code||c.titre):c.titre)}</b><small>${esc(c.debut)}–${esc(c.fin)}</small>${c.salle&&(long||!compact)?`<small>${esc(c.salle)}</small>`:''}${c.prof&&long&&!compact?`<small>${esc(c.prof)}</small>`:''}</div>`}).join('')}
    ${d===nIso&&nMin>T0&&nMin<T1?`<div class="now" style="top:${(nMin-T0)*K}px"></div>`:''}
    ${!cs.length&&!compact?'<p class="empty" style="position:absolute;top:40%;width:100%;text-align:center">Pas de cours 🎉</p>':''}</div>`}).join('')}</div>`;
 };
@@ -516,7 +569,7 @@ V.edt=()=>{
   <div class="strip"><button class="ghost arr" data-shift="-7" aria-label="Semaine précédente">‹</button>
    ${week.map(d=>{const dt=new Date(d+'T12:00');return `<button class="dy ${d===edtDay&&edtMode==='jour'?'on':''} ${d===nIso?'today':''}" data-day="${d}">${dt.toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','')}<b>${dt.getDate()}</b>${coursDu(d).length?'<i></i>':''}</button>`}).join('')}
    <button class="ghost arr" data-shift="7" aria-label="Semaine suivante">›</button></div>
-  <div class="card tl-card" id="tlcard">${edtMode==='jour'?`<h2 style="margin:0 0 12px">${new Date(edtDay+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</h2>`+timeline([edtDay],false):timeline(week,innerWidth<700)}
+  <div class="card tl-card" id="tlcard">${edtMode==='jour'?`<h2 style="margin:0 0 12px">${new Date(edtDay+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</h2>`+infosDu(edtDay).map(i=>infoHtml(i,false)).join('')+timeline([edtDay],false):week.flatMap(infosDu).map(i=>infoHtml(i,true)).join('')+timeline(week,innerWidth<700)}
    ${!wk&&!loading?'<p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">Semaine pas encore chargée depuis Formadep (ou vacances).</p>':''}</div>
   <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 18px">${edtMode==='jour'?'Glisse à gauche ou à droite pour changer de jour. ':''}${last?'Formadep mis à jour '+new Date(last).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''}</p>
   <details class="card"><summary style="cursor:pointer;font-family:var(--mono);font-weight:700">Cours ajoutés à la main</summary><div style="margin-top:14px"><form class="f" data-f="edt">
@@ -538,7 +591,8 @@ V.devoirs=()=>{
 };
 let notesTab='notes';
 V.notes=()=>{
-  const tabs=`<div class="tabs"><button class="${notesTab==='notes'?'':'ghost'}" data-nt="notes">Notes</button><button class="${notesTab==='abs'?'':'ghost'}" data-nt="abs">Absences</button></div>`;
+  const tabs=`<div class="tabs"><button class="${notesTab==='notes'?'':'ghost'}" data-nt="notes">Notes</button><button class="${notesTab==='evo'?'':'ghost'}" data-nt="evo">Évolution</button><button class="${notesTab==='abs'?'':'ghost'}" data-nt="abs">Absences</button></div>`;
+  if(notesTab==='evo')return `<h1>Mon <b>évolution</b></h1><p class="sub">Tes moyennes d'UE au fil des notes, et tes objectifs</p>${tabs}${evoView()}`;
   if(notesTab==='abs')return `<h1>Absences & <b>retards</b></h1><p class="sub">Garde un œil sur ton assiduité</p>${tabs}${absView()}`;
   const notes=notesList(),noted=MODS.filter(([c])=>modAvg(c)!==null),orph=notes.filter(n=>!n.mod);
   const modOpts=MODS.map(([c,k,l])=>`<option value="${c}">${k} · ${esc(l)}</option>`).join(''),v=valeurs('notes');
@@ -596,8 +650,10 @@ V.revisions=()=>{
   const deck=fcDeck(),cur=deck[0],mast=cards.filter(c=>(c.box||1)>=5).length;
   const next=cards.filter(c=>!fcMod||c.module===fcMod).map(c=>c.due||'').sort()[0];
   const dots=b=>`<span style="font-family:var(--mono);color:var(--acc);letter-spacing:2px" title="Niveau ${b}/5">${'●'.repeat(b)}<span style="color:var(--line)">${'●'.repeat(5-b)}</span></span>`;
-  return `<h1><b>Révisions</b></h1><p class="sub">Tes guides et tes flashcards</p>
-  <div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides PDF</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button></div>
+  const rtabs=`<div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button><button class="${revTab==='timer'?'':'ghost'}" data-rt="timer">Minuteur${pomo()?' ●':''}</button></div>`;
+  if(revTab==='timer')return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>${rtabs}${pomoView()}`;
+  return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>
+  ${rtabs}
   ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R106)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
   :`<div class="grid"><div class="card"><h2>${fcAll?'Révision libre':'À réviser aujourd\'hui'}</h2>
    <div style="display:flex;gap:8px;margin-bottom:12px"><select data-fm><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>${fcAll?'<button class="ghost" data-fcall>Mode normal</button>':''}</div>
@@ -617,6 +673,141 @@ const gradeCard=g=>{
     return {...c,box,due:g===0?isoDay(new Date()):addDays(BOX_DAYS[box]),last:Date.now()}}));
   fcBack=false;render();
 };
+
+/* ---------- Minuteur de révision (Pomodoro) ---------- */
+const POMO_PRESETS=[[25,5],[50,10],[15,3]];
+const RING=2*Math.PI*96;                         // circonférence de l'anneau (rayon 96)
+let audioCtx=null;
+const bip=()=>{try{if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=880;o.connect(g);g.connect(audioCtx.destination);
+  g.gain.setValueAtTime(.25,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.9);o.start();o.stop(audioCtx.currentTime+.9)}catch(e){}};
+const pomoCfg=()=>({travail:25,pause:5,mod:'',...S.get('pomoCfg',{})});
+const pomo=()=>S.get('pomo',null);              // {phase, fin, total, pauseReste} : on garde l'HEURE DE FIN, pas un compteur
+const fmtMS=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return `${pad(Math.floor(s/60))}:${pad(s%60)}`};
+const sessions=()=>S.get('sessions',[]);
+const enRevision=()=>(location.hash==='#etudes'&&etudesTab==='revisions')||location.hash==='#revisions';
+const logSession=min=>{if(min>=1)S.set('sessions',[...sessions(),{id:uid(),date:isoDay(new Date()),mod:pomoCfg().mod||'Autre',min}])};
+const pomoTick=()=>{
+  const p=pomo();if(!p||p.pauseReste!=null)return;
+  if(Date.now()>=p.fin){                         // une phase vient de se terminer
+    const c=pomoCfg();
+    if(p.phase==='travail'){logSession(Math.round(p.total/60000));S.raw('pomo',{phase:'pause',fin:Date.now()+c.pause*60000,total:c.pause*60000});bip();toast(`Bien joué ! Pause de ${c.pause} min ☕`)}
+    else{S.raw('pomo',null);bip();toast('Pause terminée, on s\'y remet ? 💪')}
+    if(enRevision()&&revTab==='timer')render();return;
+  }
+  const el=$('#pomotime');if(el){el.textContent=fmtMS(p.fin-Date.now());const r=$('#pomoring');if(r)r.style.strokeDashoffset=String(RING*((p.fin-Date.now())/p.total))}
+};
+setInterval(pomoTick,1000);
+const pomoView=()=>{
+  const p=pomo(),c=pomoCfg(),pause=p&&p.pauseReste!=null;
+  const total=p?p.total:c.travail*60000,reste=p?(pause?p.pauseReste:p.fin-Date.now()):total;
+  const couleur=p&&p.phase==='pause'?'var(--cy)':'var(--acc)';
+  const lundi=mondayOf(isoDay(new Date())),sem=sessions().filter(x=>x.date>=lundi),auj=sem.filter(x=>x.date===isoDay(new Date()));
+  const parMod=Object.entries(sem.reduce((o,x)=>(o[x.mod]=(o[x.mod]||0)+x.min,o),{})).sort((a,b)=>b[1]-a[1]),max=Math.max(1,...parMod.map(x=>x[1]));
+  const nomMod=c=>{const m=MODS.find(x=>x[0]===c);return m?m[1]+' · '+m[2]:c};
+  return `<div class="grid"><div class="card" style="text-align:center">
+   <svg viewBox="0 0 220 220" width="220" height="220" style="max-width:100%"><circle cx="110" cy="110" r="96" fill="none" stroke="var(--line)" stroke-width="12"/>
+    <circle id="pomoring" cx="110" cy="110" r="96" fill="none" stroke="${couleur}" stroke-width="12" stroke-linecap="round" transform="rotate(-90 110 110)" stroke-dasharray="${RING}" style="stroke-dashoffset:${RING*(reste/total)};transition:stroke-dashoffset 1s linear"/>
+    <text id="pomotime" x="110" y="112" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="44" font-weight="700" fill="var(--ink)">${fmtMS(reste)}</text>
+    <text x="110" y="146" text-anchor="middle" font-size="14" fill="${couleur}">${p?(p.phase==='travail'?(pause?'En pause':'Concentration'):'Pause ☕'):'Prêt ?'}</text></svg>
+   ${p?`<p class="m" style="color:var(--mute);margin:6px 0 12px">${esc(nomMod(c.mod||'Autre'))}</p><div style="display:flex;gap:8px;justify-content:center">${pause?'<button data-pomo="resume">Reprendre</button>':'<button class="ghost" data-pomo="pause">Pause</button>'}<button class="ghost" data-pomo="stop">Arrêter</button></div>`
+   :`<select data-pmod style="margin:10px 0">${[['','Choisis la matière…'],...MODS.map(([k,n,l])=>[k,n+' · '+l]),['Autre','Autre']].map(([k,l])=>`<option value="${k}" ${sel(k,c.mod)}>${esc(l)}</option>`).join('')}</select>
+    <div class="chips" style="justify-content:center;margin-bottom:12px">${POMO_PRESETS.map(([t,ps])=>`<button class="${c.travail===t&&c.pause===ps?'on':''}" data-preset="${t}-${ps}">${t} / ${ps} min</button>`).join('')}</div>
+    <button data-pomo="start" style="width:100%">▶ Démarrer</button>`}
+   <p class="m" style="color:var(--mute);font-size:13px;margin:12px 0 0">Travail concentré, puis pause courte : c'est la méthode Pomodoro. Le temps est compté même si tu changes d'onglet.</p></div>
+  <div class="card"><h2>Mon temps de révision</h2>
+   <div class="tiles" style="margin-bottom:12px"><div class="tile"><span>Aujourd'hui</span><b>${duree(auj.reduce((a,x)=>a+x.min,0))}</b></div><div class="tile"><span>Cette semaine</span><b style="color:var(--acc)">${duree(sem.reduce((a,x)=>a+x.min,0))}</b></div><div class="tile"><span>Sessions</span><b>${sem.length}</b></div></div>
+   ${parMod.map(([m,min])=>`<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:14px">${esc(nomMod(m))}</span><b style="font-family:var(--mono);white-space:nowrap">${duree(min)}</b></div><div class="bar"><i style="width:${min/max*100}%;background:${colorOf(m)}"></i></div></div>`).join('')||'<p class="empty">Lance ton premier minuteur 💪</p>'}</div></div>`;
+};
+
+/* ---------- Évolution des notes + objectifs ---------- */
+const UE_COUL={UE1:'#00e5a0',UE2:'#3ad7ff',UE3:'#b18cff'};
+// Date d'une note : celle enregistrée, sinon celle cachée dans son identifiant (uid = horodatage en base 36)
+const noteDate=n=>{if(n.date)return n.date;const t=parseInt(String(n.id||'').slice(0,-4),36);return t>1.5e12&&t<2.5e12?isoDay(new Date(t)):isoDay(new Date())};
+const objectifs=()=>({UE1:10,UE2:10,UE3:10,...S.get('objectifs',{})});
+const evoSeries=()=>{const ns=notesList().filter(n=>n.mod),dates=[...new Set(ns.map(noteDate))].sort();
+  return {dates,series:Object.keys(UES).map(u=>({u,pts:dates.map(d=>ueAvg(u,null,ns.filter(n=>noteDate(n)<=d)).m)}))}};
+let roEvo=null;
+const drawEvo=()=>{
+  const box=$('#evofig');if(!box)return;
+  const draw=()=>{const W=box.clientWidth,H=box.clientHeight,{dates,series}=evoSeries();
+    if(!dates.length){box.innerHTML='<p class="empty" style="padding:20px">Ajoute des notes pour voir ton évolution.</p>';return}
+    const L=34,R=16,T=12,B=28,x=i=>dates.length<2?(L+W-R)/2:L+i*(W-L-R)/(dates.length-1),y=v=>T+(20-v)*(H-T-B)/20;
+    const grille=[0,5,10,15,20].map(v=>`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${v===10?'#ff5c7a':'#22303e'}" stroke-dasharray="${v===10?'5 4':''}"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8596a6" font-family="JetBrains Mono,monospace">${v}</text>`).join('');
+    const lignes=series.map(({u,pts})=>{const ok=pts.map((v,i)=>v===null?null:[x(i),y(v)]).filter(Boolean);
+      return ok.length?`<polyline points="${ok.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${UE_COUL[u]}" stroke-width="2.5" stroke-linejoin="round"/>${ok.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${UE_COUL[u]}"/>`).join('')}`:''}).join('');
+    const lab=i=>{const d=dates[i];return `${d.slice(8,10)}/${d.slice(5,7)}`};
+    box.innerHTML=`<svg width="${W}" height="${H}">${grille}${lignes}<text x="${x(0)}" y="${H-8}" font-size="11" fill="#8596a6" text-anchor="${dates.length<2?'middle':'start'}">${lab(0)}</text>${dates.length>1?`<text x="${x(dates.length-1)}" y="${H-8}" font-size="11" fill="#8596a6" text-anchor="end">${lab(dates.length-1)}</text>`:''}</svg>`};
+  draw();if(roEvo)roEvo.disconnect();roEvo=new ResizeObserver(draw);roEvo.observe(box);
+};
+const evoView=()=>{const o=objectifs();
+  return `<div class="card" style="margin-bottom:16px"><h2>Évolution de tes moyennes d'UE</h2><div class="fig" id="evofig" style="min-height:260px;height:260px"></div>
+   <div class="legend">${Object.entries(UES).map(([u,l])=>`<span><i style="background:${UE_COUL[u]}"></i>${l}</span>`).join('')}<span><i style="background:#ff5c7a;height:2px"></i>Seuil 10</span></div></div>
+  <div class="grid">${Object.entries(UES).map(([u,l])=>{const m=ueAvg(u).m,ec=m===null?null:o[u]-m;
+   return `<div class="card"><h2>${l}</h2><div style="display:flex;align-items:baseline;gap:10px"><div class="big" style="font-size:36px;color:${UE_COUL[u]}">${fx(m)}</div><span class="m" style="color:var(--mute)">objectif ${fx(+o[u])}</span></div>
+    <div class="bar" style="position:relative;margin-top:10px"><i style="width:${m===null?0:m*5}%;background:${UE_COUL[u]}"></i><b style="position:absolute;top:-4px;left:calc(${o[u]*5}% - 1px);width:2px;height:16px;background:var(--ink)"></b></div>
+    <p class="m" style="margin:10px 0 0;color:${ec===null?'var(--mute)':ec<=0?'var(--acc)':'var(--warn)'}">${ec===null?'Pas encore de note':ec<=0?'Objectif atteint ✓':`Il te manque ${fx(ec)} point${ec>=2?'s':''}`}</p></div>`}).join('')}</div>
+  <div class="card" style="margin-top:16px"><h2>Mes objectifs</h2><form class="f" data-f="objectifs">${Object.entries(UES).map(([u,l])=>`<label style="display:grid;gap:4px;font-size:14px;color:var(--mute)">${l}<input name="${u}" type="number" step="0.5" min="0" max="20" value="${esc(o[u])}"></label>`).join('')}<button style="align-self:end">Enregistrer</button></form></div>`;
+};
+
+/* ---------- Panneau admin (compte admin à part) ---------- */
+// L'app ne fait que CACHER ou MONTRER ce panneau. La vraie sécurité est dans le Worker :
+// chaque action admin est refusée si le jeton n'est pas celui du compte ADMIN_ID.
+const ADMIN_NAV=[['annonces','Annonces'],['infos','Infos EDT'],['comptes','Comptes'],['stats','Stats']];
+let adm=null;                                     // données du tableau de bord (comptes, annonces, infos)
+const AV={};
+const chargerAdmin=async()=>{try{const {ok,d}=await appelAdmin('/api/admin/etat');if(ok){adm=d;render()}else toast('Erreur : '+(d.erreur||'refusé'))}catch(e){toast('Worker injoignable')}};
+const actionAdmin=async(chemin,corps,msg)=>{const {ok,d}=await appelAdmin(chemin,corps);toast(ok?(typeof msg==='function'?msg(d):msg):'Erreur : '+(d.erreur||'refusé'));if(ok)await chargerAdmin();return ok};
+const enteteAdmin=(titre,sous)=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><h1>${titre}</h1><p class="sub">${sous}</p></div><button class="ghost" data-logout style="flex:none">Déconnexion</button></div>`;
+const attente=()=>adm?'':'<div class="card"><p class="empty">Chargement du tableau de bord…</p></div>';
+const quand=iso=>iso?new Date(iso).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'jamais';
+const emailDe=id=>((adm?.utilisateurs||[]).find(u=>u.id===id)||{}).email||'compte supprimé';
+const eleves=()=>(adm?.utilisateurs||[]).filter(u=>!u.admin);
+AV.annonces=()=>`${enteteAdmin('<b>Annonces</b> 📣','Un message dans l\'app de tes utilisateurs + une notif')}
+  <div class="card" style="margin-bottom:16px"><h2>Nouvelle annonce</h2><form class="f" data-f="annonce" style="grid-template-columns:1fr">
+   <input name="titre" maxlength="80" placeholder="Titre (ex : Maintenance ce soir)" required>
+   <textarea name="texte" rows="4" maxlength="1000" placeholder="Ton message…" required></textarea>
+   <select name="email"><option value="">👥 Tout le monde</option>${eleves().map(u=>`<option value="${esc(u.email)}">👤 ${esc(u.email)}</option>`).join('')}</select>
+   <button>Envoyer</button></form></div>
+  ${attente()}${adm?`<div class="card"><h2>Déjà envoyées</h2>${adm.annonces.map(a=>`<div class="row"><span class="t">${esc(a.titre)}<div class="m">${quand(a.created_at)} · ${a.cible?'👤 '+esc(emailDe(a.cible)):'👥 tout le monde'}</div><div class="m" style="margin-top:4px;white-space:pre-wrap">${esc(a.texte)}</div></span><button class="x" data-adel="${esc(a.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucune annonce pour l\'instant.</p>'}</div>`:''}`;
+AV.infos=()=>`${enteteAdmin('Infos <b>EDT</b> ℹ️','Un message collé sur un jour ou un cours, visible dans l\'EDT de tout le monde')}
+  <div class="card" style="margin-bottom:16px"><h2>Nouvelle info</h2><form class="f" data-f="info">
+   <input name="date" type="date" value="${isoDay(new Date())}" required><input name="debut" type="time" title="Heure de début du cours (laisse vide pour toute la journée)">
+   <textarea name="texte" rows="2" maxlength="300" placeholder="Ex : DS reporté à jeudi, salle changée…" required style="grid-column:1/-1"></textarea>
+   <label style="display:flex;gap:8px;align-items:center;grid-column:1/-1;font-size:14px"><input type="checkbox" name="notif" checked style="width:auto;min-height:0"> Prévenir aussi par notification</label>
+   <button style="grid-column:1/-1">Publier</button></form>
+   <p class="m" style="color:var(--mute);font-size:13px;margin:0">Heure : mets l'heure de début du cours concerné (ex : 08:15) pour que l'info s'affiche sur ce cours. Vide = toute la journée.</p></div>
+  ${attente()}${adm?`<div class="card"><h2>Infos à venir</h2>${adm.infos.map(i=>`<div class="row"><span class="time">${fmtD(i.date)}${i.debut?'<br>'+esc(i.debut):''}</span><span class="t">${esc(i.texte)}</span><button class="x" data-idel="${esc(i.id)}" aria-label="Supprimer">×</button></div>`).join('')||'<p class="empty">Aucune info en cours.</p>'}</div>`:''}`;
+AV.comptes=()=>`${enteteAdmin('<b>Comptes</b> 👥','Gère les comptes de l\'app')}${attente()}
+  ${adm?`<div class="card" style="margin-bottom:16px"><h2>${eleves().length} compte${eleves().length>1?'s':''}</h2>${eleves().map(u=>`<div class="row"><span class="t">${esc(u.email)}<div class="m">vu ${quand(u.derniere)} · créé le ${fmtD((u.cree||'').slice(0,10))}</div><div class="m" style="margin-top:4px">${u.notifs?'<span class="tag cy">🔔 notifs</span> ':''}${u.desactive?'<span class="tag ds">désactivé</span>':''}</div></span><button class="ghost" style="flex:none;font-size:14px;padding:6px 12px" data-ban="${esc(u.email)}" data-actif="${u.desactive?1:0}">${u.desactive?'Réactiver':'Désactiver'}</button></div>`).join('')||'<p class="empty">Personne pour l\'instant.</p>'}</div>`:''}
+  <div class="card"><h2>Mot de passe provisoire</h2><form class="f" data-f="adminreset" style="grid-template-columns:1fr"><select name="email" required><option value="">Choisis le compte…</option>${eleves().map(u=>`<option>${esc(u.email)}</option>`).join('')}</select><input name="pw" type="text" minlength="8" placeholder="Mot de passe provisoire (8 caractères min.)" required><button>Réinitialiser</button></form>
+  <p class="m" style="color:var(--mute);font-size:13px;margin:0">Donne-le à la personne de vive voix, et dis-lui de le changer tout de suite dans Moi → Sécurité.</p></div>`;
+AV.stats=()=>{if(!adm)return enteteAdmin('<b>Statistiques</b> 📊','')+attente();
+  const us=eleves(),il7=Date.now()-7*864e5,lundi=mondayOf(isoDay(new Date()));
+  const actifs=us.filter(u=>u.derniere&&Date.parse(u.derniere)>il7).length,notifs=us.filter(u=>u.notifs).length,nouveaux=us.filter(u=>(u.cree||'').slice(0,10)>=lundi).length;
+  return `${enteteAdmin('<b>Statistiques</b> 📊','L\'app en chiffres')}
+  <div class="tiles" style="margin-bottom:16px"><div class="tile"><span>Comptes</span><b>${us.length}</b></div><div class="tile"><span>Actifs (7 j)</span><b style="color:var(--acc)">${actifs}</b></div><div class="tile"><span>Notifs ON</span><b style="color:var(--cy)">${notifs}</b></div></div>
+  <div class="card" style="margin-bottom:16px"><h2>Adoption</h2>
+   ${[['Utilisent l\'app cette semaine',actifs],['Ont activé les notifications',notifs],['Nouveaux cette semaine',nouveaux]].map(([l,n])=>`<div style="margin:10px 0"><div style="display:flex;justify-content:space-between"><span style="font-size:14px">${l}</span><b style="font-family:var(--mono)">${n} / ${us.length}</b></div><div class="bar"><i style="width:${us.length?n/us.length*100:0}%"></i></div></div>`).join('')}</div>
+  <div class="card"><h2>Dernières connexions</h2>${us.slice(0,8).map(u=>`<div class="row" style="padding:7px 0"><span class="t" style="font-size:14px">${esc(u.email)}</span><span class="m" style="color:var(--mute)">${quand(u.derniere)}</span></div>`).join('')||'<p class="empty">—</p>'}
+   <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">🔒 Tu vois les comptes, pas leurs notes ni leurs données : elles restent privées.</p></div>`};
+
+/* ---------- Annonces et infos EDT, côté élève ---------- */
+const annonces=()=>S.get('annonces',[]);
+const nonLues=()=>{const lu=S.get('annLu','');return annonces().filter(a=>a.created_at>lu)};
+const infosDu=d=>S.get('edtInfos',[]).filter(x=>x.date===d);
+const infoHtml=(i,jour)=>`<div class="info">ℹ️ ${jour?`<b>${fmtD(i.date)}${i.debut?' · '+esc(i.debut):''}</b> · `:i.debut?`<b>${esc(i.debut)}</b> · `:''}${esc(i.texte)}</div>`;
+const majBadge=()=>{const a=document.querySelector('#nav a[data-k=moi]');if(a)a.classList.toggle('dot',!isAdmin&&nonLues().length>0)};
+const chargerAnnonces=async()=>{
+  if(!sb||!sbUser||isAdmin||navigator.onLine===false)return;
+  try{const avant=JSON.stringify([annonces(),S.get('edtInfos',[])]);
+    const [a,i]=await Promise.all([sb.from('annonces').select('id,titre,texte,created_at').order('created_at',{ascending:false}).limit(20),
+      sb.from('edt_infos').select('id,date,debut,texte').gte('date',addD(isoDay(new Date()),-7)).order('date')]);
+    if(!a.error)S.raw('annonces',a.data);if(!i.error)S.raw('edtInfos',i.data);majBadge();
+    if(JSON.stringify([annonces(),S.get('edtInfos',[])])!==avant&&['','#accueil','#moi','#edt'].includes(location.hash))render();
+  }catch(e){}
+};
+const annoncesCard=()=>{const l=annonces().slice(0,10),nl=nonLues().map(a=>a.id);if(!l.length)return '';
+  return `<div class="card" style="margin-bottom:16px"><h2>Annonces 📣</h2>${l.map(a=>`<div class="row"><span class="t">${esc(a.titre)} ${nl.includes(a.id)?'<span class="tag">Nouveau</span>':''}<div class="m">${quand(a.created_at)}</div><div class="m" style="margin-top:4px;white-space:pre-wrap;color:var(--ink)">${esc(a.texte)}</div></span></div>`).join('')}</div>`};
 
 /* ---------- Réseau : sous-onglets ---------- */
 let netTab='ip',netQ='',memoOS='linux';
@@ -643,7 +834,10 @@ Lien R1-R2 2</textarea><button>Découper</button></form><div id="vlsmres"></div>
 
 /* ---------- Rendu + routage ---------- */
 const render=()=>{
+  if(doitSeConnecter()){document.body.classList.add('gate');$('#view').innerHTML=recovery?vNouveauMdp():vLogin();return}
+  document.body.classList.remove('gate');
   let k=location.hash.slice(1);
+  if(isAdmin){if(!AV[k])k='annonces';$('#view').innerHTML=AV[k]();document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));return}
   if(SOUS_ETUDES[k]){etudesTab=k;k='etudes'}              // #devoirs → Études / Devoirs
   if(!V[k])k='accueil';
   $('#view').innerHTML=V[k]();
@@ -652,6 +846,8 @@ const render=()=>{
   if(sub==='revisions'&&revTab==='pdf')listPdf();
   if(k==='edt')ensureWeek(edtDay||firstDay());
   if(k==='accueil')loadTrajet();
+  if(k==='moi'&&nonLues().length){S.set('annLu',annonces()[0].created_at);majBadge()}
+  if(k==='notes'&&notesTab==='evo')drawEvo();
   if(sub==='reseau'){if(netTab==='ip'){calcIp('192.168.1.10/24');conv('200',10)}if(netTab==='vlsm')calcVlsm($('[name=base]').value,$('[name=list]').value);if(netTab==='ipv6')calcV6($('[name=a]').value)}
 };
 addEventListener('hashchange',render);
@@ -801,7 +997,13 @@ document.addEventListener('submit',async e=>{
   const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
   if(k==='trajet'){S.set('trajet',{de:d.de.trim(),vers:d.vers.trim(),marge:+d.marge||0});trajetRes={};toast('Itinéraire enregistré ✓');return render()}
   if(k==='profil'){S.set('profil',{prenom:d.prenom.trim(),groupe:d.groupe.trim()});toast('Profil enregistré ✓');return render()}
-  if(k==='login')return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up');
+  if(k==='login'){if(!sb){toast('Connexion en cours de chargement, réessaie dans 2 s');return}return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up')}
+  if(k==='reset'){const {error}=await sb.auth.resetPasswordForEmail(d.email.trim(),{redirectTo:location.origin+location.pathname});toast(error?'Erreur : '+error.message:'Si ce compte existe, un e-mail est parti ✉');return}
+  if(k==='newpw'){if(await changerMdp(d.pw,d.pw2)){recovery=false;history.replaceState(null,'',location.pathname);render()}return}
+  if(k==='chpw'){if(await changerMdp(d.pw,d.pw2))f.reset();return}
+  if(k==='annonce'){if(await actionAdmin('/api/admin/annonce',{titre:d.titre,texte:d.texte,email:d.email||null},r=>`Annonce envoyée ✓ (${r.notifies} notif${r.notifies>1?'s':''})`))f.reset();return}
+  if(k==='info'){if(await actionAdmin('/api/admin/info',{date:d.date,debut:d.debut,texte:d.texte,notif:!!d.notif},r=>`Info publiée ✓${d.notif?` (${r.notifies} notif${r.notifies>1?'s':''})`:''}`))f.reset();return}
+  if(k==='adminreset'){const {ok,d:r}=await appelAdmin('/api/admin/reset',{email:d.email.trim(),password:d.pw});toast(ok?'Mot de passe provisoire enregistré ✓':'Erreur : '+(r.erreur||'refusé'));if(ok)f.reset();return}
   if(k==='api'){S.set('apiUrl',d.url.trim());return loadEdt()}
   if(k==='ip')return calcIp(d.ip);
   if(k==='conv')return conv(d.v,+d.b);
@@ -820,7 +1022,8 @@ document.addEventListener('submit',async e=>{
     try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}
     S.set('pdfmeta',[...S.get('pdfmeta',[]),{id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}]);
     toast('Guide déposé ✓');f.reset();await uploadPendingPdfs();return listPdf()}
-  if(k==='notes'){d.note=+d.note;d.poids=+d.poids||1;d.module=d.mod}
+  if(k==='notes'){d.note=+d.note;d.poids=+d.poids||1;d.module=d.mod;d.date=editing&&editing.k==='notes'?noteDate(notesList().find(x=>x.id===editing.id)||{}):isoDay(new Date())}
+  if(k==='objectifs'){const o={};for(const u of Object.keys(UES))o[u]=Math.min(20,Math.max(0,+d[u]||10));S.set('objectifs',o);toast('Objectifs enregistrés ✓');return render()}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
   if(editing&&editing.k===k){S.set(k,S.get(k,[]).map(x=>x.id===editing.id?{...(k==='notes'?{}:x),...d,id:x.id}:x));editing=null;delete prefill[k];toast('Modifié ✓');return render()}
@@ -829,17 +1032,29 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
   if(e.target.id==='sheet'){$('#sheet').classList.remove('on');return}
   {const cc=e.target.closest('[data-cday]');if(cc&&!e.target.closest('button')){openCours(cc.dataset.cday,+cc.dataset.ci);return}}
+  if(e.target.closest('[data-oubli]')){e.preventDefault();oubli=!oubli;return render()}
   if(e.target.closest('[data-goabs]'))notesTab='abs';
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
   if(t.dataset.et){etudesTab=t.dataset.et;if(location.hash!=='#etudes')location.hash='#etudes';return render()}
   if(t.dataset.trm){trajetMode=t.dataset.trm;return redrawTrajet()}
+  if(t.dataset.adel&&confirm('Supprimer cette annonce ?'))return actionAdmin('/api/admin/annonce/suppr',{id:t.dataset.adel},'Annonce supprimée');
+  if(t.dataset.idel&&confirm('Supprimer cette info ?'))return actionAdmin('/api/admin/info/suppr',{id:t.dataset.idel},'Info supprimée');
+  if(t.dataset.ban){const on=t.dataset.actif==='1';if(confirm(`${on?'Réactiver':'Désactiver'} ${t.dataset.ban} ?`))return actionAdmin('/api/admin/compte',{email:t.dataset.ban,actif:on},on?'Compte réactivé ✓':'Compte désactivé');return}
+  if(t.dataset.annlu!==undefined){S.set('annLu',annonces()[0].created_at);majBadge();return render()}
+  if(t.dataset.preset){const [tr,pa]=t.dataset.preset.split('-').map(Number);S.raw('pomoCfg',{...pomoCfg(),travail:tr,pause:pa});return render()}
+  if(t.dataset.pomo){const a=t.dataset.pomo,p=pomo(),c=pomoCfg(),now=Date.now();
+    if(a==='start'){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();audioCtx.resume()}catch(err){}S.raw('pomo',{phase:'travail',fin:now+c.travail*60000,total:c.travail*60000,pauseReste:null})}
+    if(a==='pause'&&p)S.raw('pomo',{...p,pauseReste:p.fin-now});
+    if(a==='resume'&&p)S.raw('pomo',{...p,fin:now+p.pauseReste,pauseReste:null});
+    if(a==='stop'&&p){if(p.phase==='travail')logSession(Math.floor((p.total-(p.pauseReste!=null?p.pauseReste:p.fin-now))/60000));S.raw('pomo',null)}
+    return render()}
   if(t.dataset.pushon!==undefined)return enablePush();
   if(t.dataset.pushoff!==undefined)return disablePush();
   if(t.dataset.pushtest!==undefined)return testPush();
   if(t.dataset.pref){S.set('notifPrefs',{cours:true,ds:true,dev:true,...S.get('notifPrefs',{}),[t.dataset.pref]:t.checked});return}
   if(t.dataset.syncnow!==undefined)return syncNow();
-  if(t.dataset.logout!==undefined){await sb.auth.signOut();sbUser=null;syncMsg='';toast('Déconnecté');return render()}
+  if(t.dataset.logout!==undefined){await syncNow();await sb.auth.signOut();sbUser=null;isAdmin=null;adm=null;await viderLocal();S.raw('_uid',null);buildNav();location.hash='';syncMsg='';toast('Déconnecté');return render()}
   if(t.dataset.sync!==undefined){const w=Object.values(S.get('edtf',{})).flatMap(w=>w.semaines||[]).find(s=>s.lundi===mondayOf(edtDay||firstDay()));return loadEdt(w?w.num:'')}
   if(t.dataset.mode){edtMode=t.dataset.mode;return render()}
   if(t.dataset.day){edtDay=t.dataset.day;edtMode='jour';return render()}
@@ -872,6 +1087,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{if(e.target.matches('[data-q]')){netQ=e.target.value;$('#qres').innerHTML=netTab==='ports'?portsList():memoList()}});
 document.addEventListener('change',e=>{
   if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcBack=false;render()}
+  if(e.target.matches('[data-pmod]')){S.raw('pomoCfg',{...pomoCfg(),mod:e.target.value});return}
   if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
 });
 render();

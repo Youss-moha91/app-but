@@ -4,7 +4,7 @@
 //  Il garde une copie des fichiers de l'app pour qu'elle s'ouvre
 //  même sans réseau.
 // ============================================================
-const CACHE = 'app-but-v2'; // change ce nom pour forcer une remise à zéro du cache
+const CACHE = 'app-but-v4'; // change ce nom pour forcer une remise à zéro du cache
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 // 1) Installation : on range les fichiers de base dans le cache
