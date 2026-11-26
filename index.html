@@ -118,6 +118,11 @@ body.gate nav{display:none}body.gate .app{grid-template-columns:1fr}body.gate ma
 .card.ann{border-color:var(--acc);background:linear-gradient(135deg,rgba(0,229,160,.10),transparent 60%),var(--card)}
 .blk.inf::after{content:'ℹ';position:absolute;top:3px;right:5px;width:16px;height:16px;border-radius:50%;background:var(--cy);color:#000;font:700 11px/16px var(--mono);text-align:center}
 #nav a.dot{position:relative}#nav a.dot::after{content:'';position:absolute;top:6px;right:calc(50% - 16px);width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--bg)}
+.qchoix{display:grid;gap:10px}.qchoix button{text-align:left;display:flex;gap:12px;align-items:center;padding:12px 14px;min-height:52px;line-height:1.35;white-space:normal}
+.qchoix button b{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--line);font-family:var(--mono)}
+.qchoix button.bon{border-color:var(--acc);background:rgba(0,229,160,.12);color:var(--ink)}.qchoix button.bon b{background:var(--acc);color:#000}
+.qchoix button.faux{border-color:var(--bad);background:rgba(255,92,122,.12);color:var(--ink)}.qchoix button.faux b{background:var(--bad);color:#000}
+.qchoix button.off{opacity:.5}.qchoix button:disabled{cursor:default}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -161,7 +166,7 @@ const memPdf=[];
 /* ---------- Supabase : connexion par code + synchronisation ---------- */
 const SB_URL='https://umxwydryeeibdumnfnvh.supabase.co';
 const SB_KEY='sb_publishable_81edgFxLrWV2yQ_SThCaCg_UN5TNYe7';
-const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet','profil','sessions','objectifs','annLu']; // ce qui part dans le cloud
+const SYNC_KEYS=['notes','devoirs','edt','cards','abs','absSeuil','pdfmeta','notifPrefs','trajet','profil','sessions','objectifs','annLu','quiz']; // ce qui part dans le cloud
 let sb=null,sbUser=null,syncMsg='',otpEmail='',pushT=null,syncing=false;
 const localDoc=()=>{const o={};for(const k of SYNC_KEYS){const v=S.get(k,null);if(v!==null)o[k]=v}return o};
 const schedulePush=()=>{if(!sbUser)return;clearTimeout(pushT);pushT=setTimeout(syncNow,1500)};
@@ -504,7 +509,7 @@ V.moi=()=>{const p=profil();
   ${securiteCard()}
   ${trajetForm()}
   ${notifCard().replace('style="margin-top:16px"','style="margin-bottom:16px"')}
-  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.4 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
+  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.5 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
 };
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
@@ -650,7 +655,8 @@ V.revisions=()=>{
   const deck=fcDeck(),cur=deck[0],mast=cards.filter(c=>(c.box||1)>=5).length;
   const next=cards.filter(c=>!fcMod||c.module===fcMod).map(c=>c.due||'').sort()[0];
   const dots=b=>`<span style="font-family:var(--mono);color:var(--acc);letter-spacing:2px" title="Niveau ${b}/5">${'●'.repeat(b)}<span style="color:var(--line)">${'●'.repeat(5-b)}</span></span>`;
-  const rtabs=`<div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button><button class="${revTab==='timer'?'':'ghost'}" data-rt="timer">Minuteur${pomo()?' ●':''}</button></div>`;
+  const rtabs=`<div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button><button class="${revTab==='quiz'?'':'ghost'}" data-rt="quiz">Quiz</button><button class="${revTab==='timer'?'':'ghost'}" data-rt="timer">Minuteur${pomo()?' ●':''}</button></div>`;
+  if(revTab==='quiz')return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards, tes quiz et ton minuteur</p>${quizRun?'':rtabs}${quizView()}`;
   if(revTab==='timer')return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>${rtabs}${pomoView()}`;
   return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>
   ${rtabs}
@@ -967,6 +973,72 @@ const calcV6=s=>{const out=$('#v6res'),r=v6parse(s);
   out.innerHTML=`<dl class="res"><dt>Complète</dt><dd>${full}</dd><dt>Compressée</dt><dd class="ok">${v6str(r.g)}${r.pfx!==null?'/'+r.pfx:''}</dd><dt>Type</dt><dd>${esc(v6type(r.g))}</dd>${net?`<dt>Préfixe</dt><dd>${net}</dd><dt>Partie hôte</dt><dd>${128-r.pfx} bits</dd>`:''}</dl>`;
 };
 
+/* ---------- Quiz (générés par l'IA à partir de tes cours, ou depuis tes flashcards) ---------- */
+let quizRun=null,quizBusy=false,quizSrc='pdf';
+const quizs=()=>S.get('quiz',[]);
+// Récupère un PDF : d'abord sur l'appareil, sinon dans le cloud
+const chargerPdf=async id=>{
+  let p;try{p=await tx('readonly',s=>s.get(id))}catch(e){p=memPdf.find(x=>x.id===id)}
+  if(!p&&sbUser){const m=S.get('pdfmeta',[]).find(x=>x.id===id);toast('Téléchargement…');
+    const {data,error}=await sb.storage.from('guides').download(pdfPath(id));
+    if(!error&&m){p={...m,blob:data};try{await tx('readwrite',s=>s.put(p))}catch(e){memPdf.push(p)}}}
+  return p};
+// Lit le TEXTE de chaque page (pas l'image) avec pdf.js
+const textePdf=async blob=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise;let t='';
+  for(let i=1;i<=doc.numPages;i++){const c=await (await doc.getPage(i)).getTextContent();t+=c.items.map(x=>x.str).join(' ')+'\n'}
+  return t.replace(/[ \t]+/g,' ').trim()};
+const PARTIE=17000;   // un long cours est coupé en parties (l'IA ne lit pas tout d'un coup)
+let quizTexte={id:null,t:''};
+const genererQuiz=async(texte,titre,module,nb)=>{
+  if(quizBusy)return;quizBusy=true;render();
+  try{const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(apiBase()+'/api/quiz',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({texte,titre,nb})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){toast(d.erreur||'Erreur '+r.status);return}
+    const q={id:uid(),titre,module:module||'Autre',source:'ia',cree:isoDay(new Date()),questions:d.questions,essais:[]};
+    S.set('quiz',[q,...quizs()].slice(0,40));toast(`Quiz prêt ✓ (encore ${d.reste} aujourd'hui)`);lancerQuiz(q.id);
+  }catch(e){toast('Pas de réseau : la génération a besoin d\'Internet')}
+  finally{quizBusy=false;render()}};
+// Sans IA : QCM fabriqué avec tes flashcards (les mauvaises réponses viennent de tes autres cartes)
+const quizCartes=module=>{const cs=S.get('cards',[]).filter(c=>!module||c.module===module);
+  if(cs.length<4){toast('Il faut au moins 4 flashcards dans ce module');return}
+  const mel=a=>a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  const questions=mel(cs).slice(0,10).map(c=>{const faux=mel(cs.filter(x=>x.id!==c.id&&x.r!==c.r).map(x=>x.r)).slice(0,3),choix=mel([c.r,...faux]);
+    return {q:c.q,choix,bonne:choix.indexOf(c.r),explication:'Réponse de ta flashcard.'}}).filter(x=>x.choix.length===4);
+  const q={id:uid(),titre:'Flashcards '+(module||'tous modules'),module:module||'Autre',source:'cartes',cree:isoDay(new Date()),questions,essais:[]};
+  S.set('quiz',[q,...quizs()].slice(0,40));lancerQuiz(q.id)};
+const lancerQuiz=id=>{quizRun={id,i:0,rep:[]};revTab='quiz';render()};
+const quizPlay=()=>{const q=quizs().find(x=>x.id===quizRun.id);if(!q){quizRun=null;return quizView()}
+  const fin=quizRun.i>=q.questions.length;
+  if(fin){const bons=quizRun.rep.filter((r,i)=>r===q.questions[i].bonne).length,tot=q.questions.length,pct=Math.round(bons/tot*100);
+    const rates=q.questions.filter((x,i)=>quizRun.rep[i]!==x.bonne);
+    return `<div class="card" style="text-align:center"><p class="m" style="color:var(--mute);margin:0">${esc(q.titre)}</p><div class="big" style="font-size:64px;margin:10px 0;color:${pct>=50?'var(--acc)':'var(--bad)'}">${bons}<small>/${tot}</small></div>
+     <p style="margin:0 0 16px">${pct>=80?'Excellent, tu maîtrises 🔥':pct>=50?'Pas mal ! Revois les erreurs 💪':'On révise encore un peu, tu vas y arriver 📚'}</p>
+     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${rates.length?`<button data-qcards>➕ ${rates.length} erreur${rates.length>1?'s':''} en flashcards</button>`:''}<button class="ghost" data-qgo="${esc(q.id)}">Recommencer</button><button class="ghost" data-qquit>Terminer</button></div></div>
+     ${rates.length?`<div class="card" style="margin-top:16px"><h2>À revoir</h2>${rates.map(x=>`<div class="row"><span class="t">${esc(x.q)}<div class="m" style="color:var(--acc);margin-top:4px">✓ ${esc(x.choix[x.bonne])}</div><div class="m" style="margin-top:2px">${esc(x.explication)}</div></span></div>`).join('')}</div>`:''}`}
+  const x=q.questions[quizRun.i],r=quizRun.rep[quizRun.i],rep=r!==undefined;
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="m" style="color:var(--mute)">${esc(q.titre)}</span><button class="x" data-qquit aria-label="Quitter">×</button></div>
+   <div class="bar" style="margin:10px 0 16px"><i style="width:${quizRun.i/q.questions.length*100}%"></i></div>
+   <p class="m" style="color:var(--cy);margin:0 0 6px;font-family:var(--mono)">Question ${quizRun.i+1} / ${q.questions.length}</p>
+   <h3 style="margin:0 0 16px;font-size:19px;line-height:1.35">${esc(x.q)}</h3>
+   <div class="qchoix">${x.choix.map((c,j)=>`<button class="ghost ${rep?(j===x.bonne?'bon':j===r?'faux':'off'):''}" data-qrep="${j}" ${rep?'disabled':''}><b>${'ABCD'[j]}</b>${esc(c)}</button>`).join('')}</div>
+   ${rep?`<div class="info" style="margin:14px 0 0;${r===x.bonne?'':'border-color:var(--bad);background:rgba(255,92,122,.08)'}"><b>${r===x.bonne?'Bonne réponse ✓':'Raté ✗'}</b> ${esc(x.explication)}</div><button data-qnext style="width:100%;margin-top:12px">${quizRun.i+1<q.questions.length?'Question suivante →':'Voir mon score'}</button>`:''}</div>`};
+const quizView=()=>{if(quizRun)return quizPlay();
+  const meta=S.get('pdfmeta',[]),cartes=S.get('cards',[]),modsC=[...new Set(cartes.map(c=>c.module))].sort(),l=quizs();
+  const der=q=>q.essais.length?q.essais[q.essais.length-1]:null;
+  return `<div class="grid"><div class="card"><h2>Nouveau quiz 🧠</h2>
+   <div class="chips" style="margin-bottom:12px"><button class="${quizSrc==='pdf'?'on':''}" data-qsrc="pdf">📄 Guide PDF</button><button class="${quizSrc==='texte'?'on':''}" data-qsrc="texte">✍️ Texte</button><button class="${quizSrc==='cartes'?'on':''}" data-qsrc="cartes">🃏 Flashcards</button></div>
+   ${quizSrc==='pdf'?(meta.length?`<form class="f" data-f="qpdf" style="grid-template-columns:1fr"><select name="id" required>${meta.map(p=>`<option value="${esc(p.id)}">${esc(p.module)} · ${esc(p.name)}</option>`).join('')}</select>
+     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option></select>
+     <button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA écrit tes questions…':'✨ Générer le quiz'}</button></form>`:'<p class="empty">Dépose d\'abord un guide PDF dans l\'onglet Guides.</p>')
+   :quizSrc==='texte'?`<form class="f" data-f="qtexte" style="grid-template-columns:1fr"><input name="titre" placeholder="Titre (ex : R101 · Modèle OSI)" required><input name="module" placeholder="Module (ex : R101)"><textarea name="texte" rows="7" placeholder="Colle ici le texte de ton cours (au moins quelques paragraphes)" required></textarea>
+     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option></select><button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA écrit tes questions…':'✨ Générer le quiz'}</button></form>`
+   :(modsC.length?`<form class="f" data-f="qcartes" style="grid-template-columns:1fr"><select name="module"><option value="">Tous les modules</option>${modsC.map(m=>`<option>${esc(m)}</option>`).join('')}</select><button>▶ Lancer (sans IA, marche hors ligne)</button></form>`:'<p class="empty">Crée d\'abord des flashcards.</p>')}
+   <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">${quizSrc==='cartes'?'Les mauvaises réponses sont tirées de tes autres flashcards : il en faut au moins 4.':'L\'IA lit ton cours et invente les questions. Elle peut se tromper : en cas de doute, vérifie dans ton cours. Limite : 5 quiz IA par jour.'}</p>
+   ${quizTexte.parties>1?`<p class="m" style="color:var(--warn);font-size:13px;margin:8px 0 0">Ce cours est long : l'IA a travaillé sur la partie ${quizTexte.n} / ${quizTexte.parties}. Relance pour la partie suivante.</p>`:''}</div>
+  <div class="card"><h2>Mes quiz</h2>${l.map(q=>{const e=der(q);return `<div class="row"><span class="t">${esc(q.titre)}<div class="m">${q.source==='ia'?'✨ IA':'🃏 Flashcards'} · ${q.questions.length} questions${e?` · dernier score <b class="${e.score/e.total>=.5?'ok':'ko'}">${e.score}/${e.total}</b>`:''}</div></span><button class="ghost" style="flex:none" data-qgo="${esc(q.id)}">▶</button><button class="x" data-qdel="${esc(q.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Aucun quiz pour l\'instant.</p>'}</div></div>`};
+
 /* ---------- PDF ---------- */
 const listPdf=async()=>{
   let l;try{l=await tx('readonly',s=>s.getAll())}catch(e){l=memPdf}
@@ -979,10 +1051,7 @@ const listPdf=async()=>{
   el.innerHTML=mods.map(m=>`<h2 style="margin-top:14px">${esc(m)}</h2>`+all.filter(p=>p.module===m).map(p=>`<div class="row"><span class="t">${esc(p.name)}<div class="m">${(p.size/1048576).toFixed(1).replace('.',',')} Mo${p.cloud?' · ☁ dans le cloud':''}${here.has(p.id)?'':' · à télécharger'}</div></span><button class="ghost" data-open="${esc(p.id)}">Ouvrir</button><button class="x" data-dpdf="${esc(p.id)}" aria-label="Supprimer">×</button></div>`).join('')).join('')||'<p class="empty">Dépose ton premier guide.</p>';
 };
 const openPdf=async id=>{
-  let p;try{p=await tx('readonly',s=>s.get(id))}catch(e){p=memPdf.find(x=>x.id===id)}
-  if(!p&&sbUser){const m=S.get('pdfmeta',[]).find(x=>x.id===id);toast('Téléchargement…');
-    const {data,error}=await sb.storage.from('guides').download(pdfPath(id));
-    if(!error&&m){p={...m,blob:data};try{await tx('readwrite',s=>s.put(p))}catch(e){memPdf.push(p)}}}
+  const p=await chargerPdf(id);
   if(!p){toast('Connecte-toi pour récupérer ce guide');return}$('#mtitle').textContent=p.name;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
   try{
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1023,6 +1092,16 @@ document.addEventListener('submit',async e=>{
     S.set('pdfmeta',[...S.get('pdfmeta',[]),{id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}]);
     toast('Guide déposé ✓');f.reset();await uploadPendingPdfs();return listPdf()}
   if(k==='notes'){d.note=+d.note;d.poids=+d.poids||1;d.module=d.mod;d.date=editing&&editing.k==='notes'?noteDate(notesList().find(x=>x.id===editing.id)||{}):isoDay(new Date())}
+  if(k==='qpdf'){const m=S.get('pdfmeta',[]).find(x=>x.id===d.id);if(!m)return;
+    let t=quizTexte.id===d.id?quizTexte.t:'';
+    if(!t){toast('Lecture du PDF…');const p=await chargerPdf(d.id);if(!p){toast('Connecte-toi pour récupérer ce guide');return}
+      try{t=await textePdf(p.blob)}catch(err){toast('Impossible de lire ce PDF');return}}
+    const parties=Math.max(1,Math.ceil(t.length/PARTIE)),n=quizTexte.id===d.id&&quizTexte.parties===parties?quizTexte.n%parties+1:1;
+    quizTexte={id:d.id,t,parties,n};
+    if(t.length<300){toast('Ce PDF n\'a presque pas de texte (scan ?) : colle plutôt le cours');return}
+    return genererQuiz(t.slice((n-1)*PARTIE,n*PARTIE),m.name.replace(/\.pdf$/i,'')+(parties>1?` (partie ${n}/${parties})`:''),m.module,+d.nb)}
+  if(k==='qtexte')return genererQuiz(d.texte,d.titre.trim(),normMod(d.module)||d.module.trim(),+d.nb);
+  if(k==='qcartes')return quizCartes(d.module);
   if(k==='objectifs'){const o={};for(const u of Object.keys(UES))o[u]=Math.min(20,Math.max(0,+d[u]||10));S.set('objectifs',o);toast('Objectifs enregistrés ✓');return render()}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
@@ -1038,6 +1117,18 @@ document.addEventListener('click',async e=>{
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
   if(t.dataset.et){etudesTab=t.dataset.et;if(location.hash!=='#etudes')location.hash='#etudes';return render()}
   if(t.dataset.trm){trajetMode=t.dataset.trm;return redrawTrajet()}
+  if(t.dataset.qsrc){quizSrc=t.dataset.qsrc;return render()}
+  if(t.dataset.qgo)return lancerQuiz(t.dataset.qgo);
+  if(t.dataset.qdel){if(confirm('Supprimer ce quiz ?')){S.set('quiz',quizs().filter(x=>x.id!==t.dataset.qdel));render()}return}
+  if(t.dataset.qrep!==undefined&&quizRun){quizRun.rep[quizRun.i]=+t.dataset.qrep;return render()}
+  if(t.dataset.qnext!==undefined&&quizRun){quizRun.i++;const q=quizs().find(x=>x.id===quizRun.id);
+    if(q&&quizRun.i>=q.questions.length){const score=quizRun.rep.filter((r,i)=>r===q.questions[i].bonne).length;
+      S.set('quiz',quizs().map(x=>x.id===q.id?{...x,essais:[...x.essais,{date:isoDay(new Date()),score,total:q.questions.length}].slice(-20)}:x))}
+    render();return scrollTo(0,0)}
+  if(t.dataset.qquit!==undefined){quizRun=null;return render()}
+  if(t.dataset.qcards!==undefined&&quizRun){const q=quizs().find(x=>x.id===quizRun.id),c=S.get('cards',[]);
+    const nv=q.questions.filter((x,i)=>quizRun.rep[i]!==x.bonne&&!c.some(k=>k.q===x.q)).map(x=>({id:uid(),module:q.module,q:x.q,r:x.choix[x.bonne]+' — '+x.explication,box:1,due:isoDay(new Date())}));
+    S.set('cards',[...c,...nv]);toast(`${nv.length} flashcard${nv.length>1?'s':''} ajoutée${nv.length>1?'s':''} ✓`);t.disabled=true;return}
   if(t.dataset.adel&&confirm('Supprimer cette annonce ?'))return actionAdmin('/api/admin/annonce/suppr',{id:t.dataset.adel},'Annonce supprimée');
   if(t.dataset.idel&&confirm('Supprimer cette info ?'))return actionAdmin('/api/admin/info/suppr',{id:t.dataset.idel},'Info supprimée');
   if(t.dataset.ban){const on=t.dataset.actif==='1';if(confirm(`${on?'Réactiver':'Désactiver'} ${t.dataset.ban} ?`))return actionAdmin('/api/admin/compte',{email:t.dataset.ban,actif:on},on?'Compte réactivé ✓':'Compte désactivé');return}
