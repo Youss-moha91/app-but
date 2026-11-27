@@ -125,6 +125,14 @@ body.gate nav{display:none}body.gate .app{grid-template-columns:1fr}body.gate ma
 .qchoix button.off{opacity:.5}.qchoix button:disabled{cursor:default}
 .lab{display:grid;gap:6px;font-size:14px;color:var(--mute)}.voir{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mute)}.voir input{width:auto;min-height:0}
 .bascule{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:18px;color:var(--mute);font-size:15px}.bascule button{min-width:220px}
+.prof .chat{max-height:55vh;min-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px 10px}
+.bulle{max-width:88%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.5;overflow-wrap:anywhere}.bulle.moi{align-self:flex-end;background:var(--acc);color:#04130d;border-bottom-right-radius:4px}
+.bulle.ia{align-self:flex-start;background:var(--panel2,#1a2430);border:1px solid var(--line);border-bottom-left-radius:4px}.bulle code{font-family:var(--mono);background:rgba(255,255,255,.07);padding:1px 5px;border-radius:5px;font-size:13px}
+.bulle pre{font-family:var(--mono);font-size:12.5px;background:#05080c;padding:10px;border-radius:8px;overflow-x:auto;margin:6px 0;white-space:pre}.bulle .li{display:block;padding-left:14px;position:relative}.bulle .li::before{content:'•';position:absolute;left:2px;color:var(--acc)}
+.prof .vide{text-align:center;padding:20px 6px}.prof-f{grid-template-columns:1fr auto!important;margin:8px 0 0}.prof-f textarea{min-height:46px;resize:none}.prof-f button{width:52px;font-size:18px}
+.dots i{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--mute);animation:dot 1.2s infinite}.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}@keyframes dot{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.tache{display:flex;align-items:center;gap:10px;padding:7px 0}.tache .t{flex:1;font-size:14.5px}.tache .coche{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:700}
+.tache.ok .coche{background:var(--acc);border-color:var(--acc);color:#04130d}.tache.ok .t{color:var(--mute);text-decoration:line-through}.tache button{flex:none;padding:5px 14px;font-size:14px;min-height:0}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -213,14 +221,14 @@ const sbPret=()=>typeof window!=='undefined'&&!!window.supabase&&!SB_URL.startsW
 // Tant qu'on n'est pas connecté, on n'affiche que l'écran de connexion
 const doitSeConnecter=()=>sbPret()&&(recovery||(sb?!sbUser:!sessionLocale()));
 // Efface les données d'un compte sur CET appareil (déconnexion ou changement de compte)
-const viderLocal=async()=>{for(const k of [...SYNC_KEYS,'_mod','_sync','_admin','annonces','edtInfos','pomo'])S.raw(k,null);try{await tx('readwrite',s=>s.clear())}catch(e){memPdf.length=0}};
+const viderLocal=async()=>{for(const k of [...SYNC_KEYS,'_mod','_sync','_admin','annonces','edtInfos','pomo','profChat','profDoc','biblioCache'])S.raw(k,null);try{await tx('readwrite',s=>s.clear())}catch(e){memPdf.length=0}};
 const prendreCompte=async user=>{const prev=S.get('_uid',null);if(prev&&prev!==user.id)await viderLocal();S.raw('_uid',user.id)};
 const LOGO_SVG=`<svg width="64" height="64" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#10302b"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="#00e5a0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>`;
 const oeil=`<label class="voir"><input type="checkbox" data-voirmdp> Afficher le mot de passe</label>`;
 const vLogin=()=>{const tete=(t,st)=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">${t}</h1><p class="sub">${st}</p>`;
   if(oubli==='inscription')return tete('Créer ton <b>compte</b>','30 secondes et c\'est parti 🚀')+`
   <div class="card"><form class="f" data-f="signup" style="grid-template-columns:1fr">
-   <label class="lab">Ton prénom<input name="prenom" autocomplete="given-name" placeholder="Ex : Youssouf" required></label>
+   <label class="lab">Ton prénom<input name="prenom" autocomplete="given-name" placeholder="Ex : Sami" required></label>
    <label class="lab">Ton adresse e-mail<input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required></label>
    <label class="lab">Choisis un mot de passe<input name="pw" type="password" autocomplete="new-password" minlength="8" placeholder="8 caractères minimum" required></label>
    <label class="lab">Retape-le pour vérifier<input name="pw2" type="password" autocomplete="new-password" minlength="8" placeholder="Le même mot de passe" required></label>
@@ -389,7 +397,8 @@ const ic={
  annonces:'<path d="M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1zM16 8a5 5 0 010 8M19 5a9 9 0 010 14"/>',
  infos:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M12 14v4M12 12.5v.01"/>',
  comptes:'<circle cx="9" cy="8" r="3.5"/><path d="M2 21c0-3.9 3.1-6 7-6s7 2.1 7 6M16 4.5a3.5 3.5 0 010 7M22 21c0-3-1.6-5-4.5-5.7"/>',
- stats:'<path d="M4 20V14M10 20V8M16 20V11M22 20H2M4 9l6-5 6 4 6-5"/>'
+ stats:'<path d="M4 20V14M10 20V8M16 20V11M22 20H2M4 9l6-5 6 4 6-5"/>',
+ biblio:'<path d="M4 4h4v16H4zM10 4h4v16h-4zM16 5l3.8-1 3.2 15.5-3.8 1z"/>'
 };
 const NAV=[['accueil','Accueil'],['edt','EDT'],['notes','Notes'],['etudes','Études'],['moi','Moi']];
 // Devoirs, Révisions et Réseau sont regroupés dans l'onglet « Études » (les anciens liens #devoirs… marchent toujours)
@@ -441,7 +450,7 @@ V.accueil=()=>{
   const g=genAvg(),due=dueCount(),nj=absStats().nj;
   return `<h1>Salut${p.prenom?` <b>${esc(p.prenom)}</b>`:' 👋'}</h1><p class="sub">${JOURS[d.getDay()]} ${d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}${p.groupe?' · '+esc(p.groupe):''}</p>
   ${(()=>{const nl=nonLues();return nl.length?`<div class="card ann" style="margin-bottom:16px"><h2>📣 ${nl.length>1?nl.length+' nouvelles annonces':'Nouvelle annonce'}</h2><b>${esc(nl[0].titre)}</b><p class="m" style="margin:6px 0 12px;white-space:pre-wrap">${esc(nl[0].texte)}</p><div style="display:flex;gap:8px"><button data-annlu>Lu ✓</button>${nl.length>1?'<button class="ghost" onclick="location.hash=\'moi\'">Tout voir</button>':''}</div></div>`:''})()}
-  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${[isoDay(d),addD(isoDay(d),1)].flatMap(infosDu).map(i=>infoHtml(i,true)).join('')}${trajetCard()}
+  <div id="livewrap" style="margin-bottom:16px">${liveCard()}</div>${[isoDay(d),addD(isoDay(d),1)].flatMap(infosDu).map(i=>infoHtml(i,true)).join('')}${planCard()}${trajetCard()}
   <div class="card" style="margin-bottom:16px"><h2>À venir</h2>${avenir.length?avenir.map(x=>{const j=daysTo(x.date);return `<div class="row"><span class="t">${esc(x.titre)}<div class="m">${esc(x.module)} · ${fmtD(x.date)}</div></span>${x.type==='DS'?'<span class="tag ds">DS</span>':''}<span class="tag ${j<=2?'ds':'cy'}">${j===0?"auj.":'J-'+j}</span></div>`}).join(''):'<p class="empty">Rien à rendre. Profite 😎</p>'}</div>
   <div class="tiles">
    <a class="tile" href="#notes"><span>Moyenne</span><b class="${g!==null&&g<10?'ko':'ok'}">${fx(g)}</b></a>
@@ -539,7 +548,7 @@ V.moi=()=>{const p=profil();
   ${securiteCard()}
   ${trajetForm()}
   ${notifCard().replace('style="margin-top:16px"','style="margin-bottom:16px"')}
-  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.6 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
+  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.7 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
 };
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
@@ -685,12 +694,13 @@ V.revisions=()=>{
   const deck=fcDeck(),cur=deck[0],mast=cards.filter(c=>(c.box||1)>=5).length;
   const next=cards.filter(c=>!fcMod||c.module===fcMod).map(c=>c.due||'').sort()[0];
   const dots=b=>`<span style="font-family:var(--mono);color:var(--acc);letter-spacing:2px" title="Niveau ${b}/5">${'●'.repeat(b)}<span style="color:var(--line)">${'●'.repeat(5-b)}</span></span>`;
-  const rtabs=`<div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Flashcards${dueCount()?` (${dueCount()})`:''}</button><button class="${revTab==='quiz'?'':'ghost'}" data-rt="quiz">Quiz</button><button class="${revTab==='timer'?'':'ghost'}" data-rt="timer">Minuteur${pomo()?' ●':''}</button></div>`;
+  const rtabs=`<div class="tabs"><button class="${revTab==='pdf'?'':'ghost'}" data-rt="pdf">Guides</button><button class="${revTab==='fc'?'':'ghost'}" data-rt="fc">Cartes${dueCount()?` (${dueCount()})`:''}</button><button class="${revTab==='quiz'?'':'ghost'}" data-rt="quiz">Quiz</button><button class="${revTab==='prof'?'':'ghost'}" data-rt="prof">Prof IA</button><button class="${revTab==='timer'?'':'ghost'}" data-rt="timer">Minuteur${pomo()?' ●':''}</button></div>`;
   if(revTab==='quiz')return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards, tes quiz et ton minuteur</p>${quizRun?'':rtabs}${quizView()}`;
+  if(revTab==='prof')return `<h1><b>Révisions</b></h1><p class="sub">Pose tes questions, le prof IA t'explique</p>${rtabs}${profView()}`;
   if(revTab==='timer')return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>${rtabs}${pomoView()}`;
   return `<h1><b>Révisions</b></h1><p class="sub">Tes guides, tes flashcards et ton minuteur</p>
   ${rtabs}
-  ${revTab==='pdf'?`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R106)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`
+  ${revTab==='pdf'?`<div class="chips" style="margin-bottom:14px"><button class="${guideVue==='moi'?'on':''}" data-gv="moi">📄 Mes guides</button><button class="${guideVue==='classe'?'on':''}" data-gv="classe">📚 Bibliothèque de la classe</button></div>`+(guideVue==='classe'?biblioView():`<div class="card"><form class="f" data-f="pdf"><input name="module" placeholder="Module (ex : R106)" required><input name="file" type="file" accept="application/pdf" required><button>Déposer</button></form><div id="pdflist"><p class="empty">Chargement…</p></div></div>`)
   :`<div class="grid"><div class="card"><h2>${fcAll?'Révision libre':'À réviser aujourd\'hui'}</h2>
    <div style="display:flex;gap:8px;margin-bottom:12px"><select data-fm><option value="">Tous les modules</option>${mods.map(m=>`<option ${m===fcMod?'selected':''}>${esc(m)}</option>`).join('')}</select>${fcAll?'<button class="ghost" data-fcall>Mode normal</button>':''}</div>
    ${cur?`<p class="m" style="color:var(--mute);margin:0 0 8px;display:flex;justify-content:space-between"><span>${esc(cur.module)} · reste ${deck.length}</span>${dots(cur.box||1)}</p>
@@ -788,7 +798,7 @@ const evoView=()=>{const o=objectifs();
 /* ---------- Panneau admin (compte admin à part) ---------- */
 // L'app ne fait que CACHER ou MONTRER ce panneau. La vraie sécurité est dans le Worker :
 // chaque action admin est refusée si le jeton n'est pas celui du compte ADMIN_ID.
-const ADMIN_NAV=[['annonces','Annonces'],['infos','Infos EDT'],['comptes','Comptes'],['stats','Stats']];
+const ADMIN_NAV=[['annonces','Annonces'],['infos','Infos EDT'],['biblio','Biblio'],['comptes','Comptes'],['stats','Stats']];
 let adm=null;                                     // données du tableau de bord (comptes, annonces, infos)
 const AV={};
 const chargerAdmin=async()=>{try{const {ok,d}=await appelAdmin('/api/admin/etat');if(ok){adm=d;render()}else toast('Erreur : '+(d.erreur||'refusé'))}catch(e){toast('Worker injoignable')}};
@@ -879,7 +889,8 @@ const render=()=>{
   $('#view').innerHTML=V[k]();
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===k));
   const sub=k==='etudes'?etudesTab:k;
-  if(sub==='revisions'&&revTab==='pdf')listPdf();
+  if(sub==='revisions'&&revTab==='pdf'&&guideVue==='moi')listPdf();
+  if(sub==='revisions'&&revTab==='prof')scrollChat();
   if(k==='edt')ensureWeek(edtDay||firstDay());
   if(k==='accueil')loadTrajet();
   if(k==='moi'&&nonLues().length){S.set('annLu',annonces()[0].created_at);majBadge()}
@@ -1069,6 +1080,93 @@ const quizView=()=>{if(quizRun)return quizPlay();
    ${quizTexte.parties>1?`<p class="m" style="color:var(--warn);font-size:13px;margin:8px 0 0">Ce cours est long : l'IA a travaillé sur la partie ${quizTexte.n} / ${quizTexte.parties}. Relance pour la partie suivante.</p>`:''}</div>
   <div class="card"><h2>Mes quiz</h2>${l.map(q=>{const e=der(q);return `<div class="row"><span class="t">${esc(q.titre)}<div class="m">${q.source==='ia'?'✨ IA':'🃏 Flashcards'} · ${q.questions.length} questions${e?` · dernier score <b class="${e.score/e.total>=.5?'ok':'ko'}">${e.score}/${e.total}</b>`:''}</div></span><button class="ghost" style="flex:none" data-qgo="${esc(q.id)}">▶</button><button class="x" data-qdel="${esc(q.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Aucun quiz pour l\'instant.</p>'}</div></div>`};
 
+/* ---------- Prof IA : poser des questions sur un cours ---------- */
+let profDoc=S.get('profDoc',''),profBusy=false;
+const profMsgs=()=>S.get('profChat',[]);
+const textes={};                                   // texte des PDF déjà lus (pour ne pas les relire à chaque question)
+const texteDe=async id=>{if(textes[id])return textes[id];const p=await chargerPdf(id);if(!p)throw new Error('pdf');return textes[id]=await textePdf(p.blob)};
+// Mini « markdown » : **gras**, `code`, listes et retours à la ligne (après avoir échappé le HTML !)
+const md=t=>esc(t).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre>${c.trim()}</pre>`).replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>')
+  .replace(/^#{1,4} (.+)$/gm,'<b>$1</b>').replace(/^\s*[-*•] (.+)$/gm,'<span class="li">$1</span>').replace(/\n/g,'<br>').replace(/<\/span><br>/g,'</span>');
+const PROF_IDEES=['Explique-moi ce cours simplement','Quelles sont les notions les plus importantes ?','Fais-moi un résumé en 10 lignes','Donne-moi un exercice corrigé'];
+const profView=()=>{const meta=S.get('pdfmeta',[]),m=profMsgs(),doc=meta.find(p=>p.id===profDoc);
+  return `<div class="card prof"><div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><select data-profdoc style="flex:1"><option value="">🌐 Sans cours (question générale)</option>${meta.map(p=>`<option value="${esc(p.id)}" ${p.id===profDoc?'selected':''}>📄 ${esc(p.module)} · ${esc(p.name)}</option>`).join('')}</select>${m.length?'<button class="ghost" data-profnew title="Nouvelle conversation" style="flex:none">↺</button>':''}</div>
+   <div class="chat" id="chat">${m.length?m.map(x=>`<div class="bulle ${x.role==='user'?'moi':'ia'}">${x.role==='user'?esc(x.content).replace(/\n/g,'<br>'):md(x.content)}</div>`).join('')+(profBusy?'<div class="bulle ia"><span class="dots"><i></i><i></i><i></i></span></div>':'')
+     :`<div class="vide"><div style="font-size:42px">🧑‍🏫</div><p style="margin:8px 0 14px">Pose une question à ton prof IA${doc?` sur <b>${esc(doc.name)}</b>`:''}.<br><span class="m" style="color:var(--mute)">Il explique simplement, avec des exemples.</span></p><div class="chips" style="justify-content:center">${PROF_IDEES.map(i=>`<button data-profidee="${esc(i)}">${esc(i)}</button>`).join('')}</div></div>`}</div>
+   <form class="f prof-f" data-f="prof"><textarea name="q" rows="1" placeholder="Ta question…" required ${profBusy?'disabled':''}></textarea><button ${profBusy?'disabled':''} aria-label="Envoyer">➤</button></form>
+   <p class="m" style="color:var(--mute);font-size:12px;margin:8px 0 0">L'IA peut se tromper : vérifie dans ton cours en cas de doute. 40 questions par jour.</p></div>`};
+const profEnvoyer=async question=>{
+  if(profBusy||!question.trim())return;
+  const hist=[...profMsgs(),{role:'user',content:question.trim()}];S.raw('profChat',hist);profBusy=true;render();scrollChat();
+  try{let texte='',titre='';
+    if(profDoc){const m=S.get('pdfmeta',[]).find(p=>p.id===profDoc);titre=m?m.name.replace(/\.pdf$/i,''):'';
+      try{texte=await texteDe(profDoc)}catch(e){toast('Impossible de lire ce PDF : je réponds sans le cours')}}
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(apiBase()+'/api/prof',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({texte,titre,historique:hist.slice(-8)})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){toast(d.erreur||'Erreur '+r.status);S.raw('profChat',hist.slice(0,-1));return}
+    S.raw('profChat',[...hist,{role:'assistant',content:d.reponse}].slice(-30));
+  }catch(e){toast('Pas de réseau : le prof IA a besoin d\'Internet');S.raw('profChat',hist.slice(0,-1))}
+  finally{profBusy=false;render();scrollChat()}};
+const scrollChat=()=>{const c=$('#chat');if(c)c.scrollTop=c.scrollHeight};
+
+/* ---------- Plan de révision automatique ---------- */
+const debutJour=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+const planDuJour=()=>{
+  const auj=isoDay(new Date()),t0=debutJour();
+  const ds=S.get('devoirs',[]).filter(x=>x.type==='DS'&&!x.done&&daysTo(x.date)>=0&&daysTo(x.date)<=14).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,2);
+  return ds.map(x=>{const m=normMod(x.module)||'',taches=[];
+    const cartes=S.get('cards',[]).filter(c=>m&&normMod(c.module)===m);
+    if(cartes.length)taches.push({t:`Revoir tes ${cartes.length} flashcards`,fait:cartes.some(c=>(c.last||0)>=t0),go:`fc:${m}`});
+    const qz=quizs().find(q=>m&&normMod(q.module)===m),pdf=S.get('pdfmeta',[]).find(p=>m&&normMod(p.module)===m);
+    if(qz)taches.push({t:`Refaire le quiz « ${qz.titre} »`,fait:qz.essais.some(e=>e.date===auj),go:`qz:${qz.id}`});
+    else if(pdf)taches.push({t:'Générer un quiz sur ton cours',fait:false,go:`qp:${pdf.id}`});
+    const min=sessions().filter(s=>s.date===auj&&(!m||s.mod===m)).reduce((a,s)=>a+s.min,0),cible=daysTo(x.date)<=3?50:25;
+    taches.push({t:`${cible} min de concentration${m?' sur '+m:''}${min?` (${min} min faites)`:''}`,fait:min>=cible,go:`pm:${m}`});
+    if(daysTo(x.date)<=3&&pdf)taches.push({t:'Poser tes questions au Prof IA',fait:false,go:`pr:${pdf.id}`});
+    return {ds:x,m,taches}})};
+const planCard=()=>{const p=planDuJour();if(!p.length)return '';
+  const tout=p.flatMap(x=>x.taches),faits=tout.filter(t=>t.fait).length;
+  const quand=n=>n===0?'aujourd\'hui':n===1?'demain':`dans ${n} jours`;
+  return `<div class="card plan" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 style="margin:0">📅 Ton plan du jour</h2><b style="font-family:var(--mono);color:${faits===tout.length?'var(--acc)':'var(--mute)'}">${faits}/${tout.length}</b></div>
+   <div class="bar" style="margin:10px 0 4px"><i style="width:${tout.length?faits/tout.length*100:0}%"></i></div>
+   ${p.map(x=>`<p class="m" style="margin:14px 0 6px;color:${daysTo(x.ds.date)<=3?'var(--warn)':'var(--cy)'}">${esc(x.ds.titre||'DS')}${x.m?' · '+esc(x.m):''} — ${quand(daysTo(x.ds.date))}</p>
+     ${x.taches.map(t=>`<div class="tache ${t.fait?'ok':''}"><span class="coche">${t.fait?'✓':''}</span><span class="t">${esc(t.t)}</span>${t.fait?'':`<button class="ghost" data-plan="${esc(t.go)}">Go</button>`}</div>`).join('')}`).join('')}
+   ${faits===tout.length?'<p class="m" style="margin:12px 0 0;color:var(--acc)">Tout est fait pour aujourd\'hui, bravo 🔥</p>':''}</div>`};
+
+/* ---------- Bibliothèque de la classe ---------- */
+let guideVue='moi';
+const biblio=()=>S.get('biblioCache',[]);
+const chargerBiblio=async()=>{if(!sb||!sbUser)return;
+  const {data,error}=await sb.from('biblio').select('id,auteur,auteur_nom,module,titre,description,chemin,taille,statut,created_at').order('created_at',{ascending:false});
+  if(error){toast('Bibliothèque indisponible');return}
+  const avant=JSON.stringify(biblio());S.raw('biblioCache',data);if(JSON.stringify(data)!==avant&&revTab==='pdf'&&guideVue==='classe')render()};
+const biblioView=()=>{const meta=S.get('pdfmeta',[]),l=biblio(),ok=l.filter(d=>d.statut==='ok'),miens=l.filter(d=>d.auteur===sbUser?.id);
+  const mods=[...new Set(ok.map(d=>d.module||'Autre'))].sort();
+  return `<div class="card" style="margin-bottom:16px"><h2>📚 Bibliothèque de la classe</h2>
+   ${ok.length?mods.map(m=>`<p class="m" style="margin:14px 0 4px;color:var(--cy);font-family:var(--mono)">${esc(m)}</p>`+ok.filter(d=>(d.module||'Autre')===m).map(d=>`<div class="row"><span class="t">${esc(d.titre)}<div class="m">par ${esc(d.auteur_nom||'un élève')} · ${(d.taille/1048576).toFixed(1).replace('.',',')} Mo${d.description?' · '+esc(d.description):''}</div></span><button class="ghost" style="flex:none" data-bopen="${esc(d.id)}">Ouvrir</button><button class="ghost" style="flex:none" data-bsave="${esc(d.id)}" title="Ajouter à mes guides">＋</button></div>`).join('')).join('')
+   :'<p class="empty">La bibliothèque est encore vide : sois le premier à partager un cours 🙌</p>'}</div>
+  <div class="card" style="margin-bottom:16px"><h2>Partager un de mes guides</h2>
+   ${meta.length?`<form class="f" data-f="bpartage" style="grid-template-columns:1fr"><select name="id" required>${meta.map(p=>`<option value="${esc(p.id)}">${esc(p.module)} · ${esc(p.name)}</option>`).join('')}</select>
+    <input name="titre" maxlength="80" placeholder="Titre (ex : Fiche OSI + exercices corrigés)" required><input name="description" maxlength="120" placeholder="Petite description (facultatif)">
+    <button>Envoyer à l'admin</button></form><p class="m" style="color:var(--mute);font-size:13px;margin:0">L'admin vérifie chaque document avant de le publier. Partage seulement tes cours ou fiches de révision, pas de documents personnels.</p>`
+   :'<p class="empty">Dépose d\'abord un guide dans « Mes guides ».</p>'}</div>
+  ${miens.length?`<div class="card"><h2>Mes partages</h2>${miens.map(d=>`<div class="row"><span class="t">${esc(d.titre)}<div class="m">${esc(d.module||'')}</div></span><span class="tag ${d.statut==='ok'?'':'cy'}">${d.statut==='ok'?'✓ publié':'⏳ en attente'}</span></div>`).join('')}</div>`:''}`};
+const ouvrirBlob=async(nom,blob)=>{$('#mtitle').textContent=nom;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
+  try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const doc=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise;box.innerHTML='';
+    for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i),vp=pg.getViewport({scale:1.6}),cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;box.appendChild(cv);await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise}
+  }catch(e){box.innerHTML='<p class="ko">Impossible d\'afficher ce PDF ici.</p>'}};
+const telechargerBiblio=async id=>{const d=biblio().find(x=>x.id===id);if(!d)return null;toast('Téléchargement…');
+  const {data,error}=await sb.storage.from('biblio').download(d.chemin);if(error){toast('Téléchargement impossible');return null}return {d,blob:data}};
+
+/* ---------- Admin : modération de la bibliothèque ---------- */
+AV.biblio=()=>{const l=adm?.biblio||[],att=l.filter(d=>d.statut!=='ok'),ok=l.filter(d=>d.statut==='ok');
+  const ligne=(d,boutons)=>`<div class="row"><span class="t">${esc(d.titre)}<div class="m">${esc(d.module||'?')} · par ${esc(d.auteur_nom||'?')} (${esc(emailDe(d.auteur))}) · ${(d.taille/1048576).toFixed(1).replace('.',',')} Mo · ${quand(d.created_at)}</div>${d.description?`<div class="m" style="margin-top:4px">${esc(d.description)}</div>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${boutons}</div></span></div>`;
+  return `${enteteAdmin('<b>Bibliothèque</b> 📚','Vérifie les documents partagés avant de les publier')}${attente()}
+  ${adm?`<div class="card" style="margin-bottom:16px"><h2>En attente (${att.length})</h2>${att.map(d=>ligne(d,`<button class="ghost" data-bapercu="${esc(d.id)}">👁 Aperçu</button><button data-bvalider="${esc(d.id)}">✓ Publier</button><button class="ghost" data-bretirer="${esc(d.id)}" style="color:var(--bad)">✗ Refuser</button>`)).join('')||'<p class="empty">Rien à vérifier 👌</p>'}</div>
+   <div class="card"><h2>Publiés (${ok.length})</h2>${ok.map(d=>ligne(d,`<button class="ghost" data-bapercu="${esc(d.id)}">👁 Aperçu</button><button class="ghost" data-bretirer="${esc(d.id)}" style="color:var(--bad)">Retirer</button>`)).join('')||'<p class="empty">Aucun document publié.</p>'}</div>`:''}`};
+
 /* ---------- PDF ---------- */
 const listPdf=async()=>{
   let l;try{l=await tx('readonly',s=>s.getAll())}catch(e){l=memPdf}
@@ -1082,13 +1180,8 @@ const listPdf=async()=>{
 };
 const openPdf=async id=>{
   const p=await chargerPdf(id);
-  if(!p){toast('Connecte-toi pour récupérer ce guide');return}$('#mtitle').textContent=p.name;const box=$('#pages');box.innerHTML='<p class="empty">Ouverture…</p>';$('#modal').classList.add('on');
-  try{
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const doc=await pdfjsLib.getDocument({data:await p.blob.arrayBuffer()}).promise;box.innerHTML='';
-    for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i),vp=pg.getViewport({scale:1.6}),cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;box.appendChild(cv);await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise}
-  }catch(e){box.innerHTML='<p class="ko">Impossible d\'afficher ce PDF ici.</p>'}
-};
+  if(!p){toast('Connecte-toi pour récupérer ce guide');return}
+  ouvrirBlob(p.name,p.blob)};
 $('#mclose').onclick=()=>{$('#modal').classList.remove('on');$('#pages').innerHTML=''};
 
 /* ---------- Événements ---------- */
@@ -1135,6 +1228,17 @@ document.addEventListener('submit',async e=>{
     return genererQuiz(t.slice((n-1)*PARTIE,n*PARTIE),m.name.replace(/\.pdf$/i,'')+(parties>1?` (partie ${n}/${parties})`:''),m.module,+d.nb)}
   if(k==='qtexte')return genererQuiz(d.texte,d.titre.trim(),normMod(d.module)||d.module.trim(),+d.nb);
   if(k==='qcartes')return quizCartes(d.module);
+  if(k==='prof'){f.reset();return profEnvoyer(d.q)}
+  if(k==='bpartage'){const m=S.get('pdfmeta',[]).find(x=>x.id===d.id);if(!m)return;
+    const p=await chargerPdf(d.id);if(!p){toast('Guide introuvable');return}
+    if(p.blob.size>15*1048576){toast('Fichier trop lourd (15 Mo max)');return}
+    const b=f.querySelector('button');b.disabled=true;b.textContent='Envoi…';
+    const chemin=`${sbUser.id}/${uid()}.pdf`;
+    const up=await sb.storage.from('biblio').upload(chemin,p.blob,{contentType:'application/pdf'});
+    if(up.error){toast('Envoi impossible : '+up.error.message);b.disabled=false;b.textContent='Envoyer à l\'admin';return}
+    const {error}=await sb.from('biblio').insert({auteur:sbUser.id,auteur_nom:profil().prenom||'Un élève',module:normMod(m.module)||m.module,titre:d.titre.trim(),description:(d.description||'').trim(),chemin,taille:p.blob.size});
+    if(error){await sb.storage.from('biblio').remove([chemin]);toast('Envoi impossible : '+error.message);b.disabled=false;b.textContent='Envoyer à l\'admin';return}
+    toast('Envoyé ✓ L\'admin va le vérifier');return chargerBiblio().then(render)}
   if(k==='objectifs'){const o={};for(const u of Object.keys(UES))o[u]=Math.min(20,Math.max(0,+d[u]||10));S.set('objectifs',o);toast('Objectifs enregistrés ✓');return render()}
   if(k==='abs'){d.duree=+d.duree;d.justif=d.justif==='on'}
   if(k==='cards'){d.box=1;d.due=isoDay(new Date());fcMod=d.module.trim()}
@@ -1151,6 +1255,25 @@ document.addEventListener('click',async e=>{
   if(t.dataset.et){etudesTab=t.dataset.et;if(location.hash!=='#etudes')location.hash='#etudes';return render()}
   if(t.dataset.trm){trajetMode=t.dataset.trm;return redrawTrajet()}
   if(t.dataset.qsrc){quizSrc=t.dataset.qsrc;return render()}
+  if(t.dataset.profidee)return profEnvoyer(t.dataset.profidee);
+  if(t.dataset.profnew!==undefined){S.raw('profChat',[]);return render()}
+  if(t.dataset.gv){guideVue=t.dataset.gv;if(guideVue==='classe')chargerBiblio();return render()}
+  if(t.dataset.bopen){const r=await telechargerBiblio(t.dataset.bopen);if(r)ouvrirBlob(r.d.titre,r.blob);return}
+  if(t.dataset.bsave){const r=await telechargerBiblio(t.dataset.bsave);if(!r)return;
+    const p={id:uid(),module:r.d.module||'Autre',name:r.d.titre+'.pdf',size:r.blob.size,blob:r.blob};
+    try{await tx('readwrite',s=>s.put(p))}catch(err){memPdf.push(p)}
+    S.set('pdfmeta',[...S.get('pdfmeta',[]),{id:p.id,module:p.module,name:p.name,size:p.size,cloud:false}]);if(sbUser)uploadPendingPdfs();
+    toast('Ajouté à tes guides ✓');return}
+  if(t.dataset.plan){const [k,v]=[t.dataset.plan.slice(0,2),t.dataset.plan.slice(3)];
+    if(k==='fc'){fcMod=v;fcAll=true;revTab='fc'}
+    if(k==='qz')return lancerQuiz(v);
+    if(k==='qp'){quizSrc='pdf';revTab='quiz'}
+    if(k==='pm'){S.raw('pomoCfg',{...pomoCfg(),mod:v||pomoCfg().mod});revTab='timer'}
+    if(k==='pr'){profDoc=v;S.raw('profDoc',v);revTab='prof'}
+    location.hash='#revisions';return render()}
+  if(t.dataset.bapercu){const {ok,d}=await appelAdmin('/api/admin/biblio/apercu',{id:t.dataset.bapercu});if(ok)window.open(d.url,'_blank');else toast('Erreur : '+(d.erreur||'refusé'));return}
+  if(t.dataset.bvalider)return actionAdmin('/api/admin/biblio/valider',{id:t.dataset.bvalider},'Publié ✓ (l\'auteur est prévenu)');
+  if(t.dataset.bretirer){if(confirm('Supprimer ce document de la bibliothèque ?'))return actionAdmin('/api/admin/biblio/retirer',{id:t.dataset.bretirer},'Document supprimé');return}
   if(t.dataset.qgo)return lancerQuiz(t.dataset.qgo);
   if(t.dataset.qdel){if(confirm('Supprimer ce quiz ?')){S.set('quiz',quizs().filter(x=>x.id!==t.dataset.qdel));render()}return}
   if(t.dataset.qrep!==undefined&&quizRun){quizRun.rep[quizRun.i]=+t.dataset.qrep;return render()}
@@ -1212,6 +1335,7 @@ document.addEventListener('input',e=>{if(e.target.matches('[data-q]')){netQ=e.ta
 document.addEventListener('change',e=>{
   if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcBack=false;render()}
   if(e.target.matches('[data-voirmdp]')){e.target.closest('form').querySelectorAll('input[name^=pw]').forEach(i=>i.type=e.target.checked?'text':'password');return}
+  if(e.target.matches('[data-profdoc]')){profDoc=e.target.value;S.raw('profDoc',profDoc);S.raw('profChat',[]);return render()}
   if(e.target.matches('[data-pmod]')){S.raw('pomoCfg',{...pomoCfg(),mod:e.target.value});return}
   if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
 });
