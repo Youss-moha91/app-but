@@ -123,6 +123,8 @@ body.gate nav{display:none}body.gate .app{grid-template-columns:1fr}body.gate ma
 .qchoix button.bon{border-color:var(--acc);background:rgba(0,229,160,.12);color:var(--ink)}.qchoix button.bon b{background:var(--acc);color:#000}
 .qchoix button.faux{border-color:var(--bad);background:rgba(255,92,122,.12);color:var(--ink)}.qchoix button.faux b{background:var(--bad);color:#000}
 .qchoix button.off{opacity:.5}.qchoix button:disabled{cursor:default}
+.lab{display:grid;gap:6px;font-size:14px;color:var(--mute)}.voir{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mute)}.voir input{width:auto;min-height:0}
+.bascule{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:18px;color:var(--mute);font-size:15px}.bascule button{min-width:220px}
 .note{font-size:14px;color:var(--mute);border-left:2px solid var(--cy);padding-left:12px;margin:0 0 18px}
 @media(max-width:760px){
 .app{grid-template-columns:1fr}
@@ -214,10 +216,28 @@ const doitSeConnecter=()=>sbPret()&&(recovery||(sb?!sbUser:!sessionLocale()));
 const viderLocal=async()=>{for(const k of [...SYNC_KEYS,'_mod','_sync','_admin','annonces','edtInfos','pomo'])S.raw(k,null);try{await tx('readwrite',s=>s.clear())}catch(e){memPdf.length=0}};
 const prendreCompte=async user=>{const prev=S.get('_uid',null);if(prev&&prev!==user.id)await viderLocal();S.raw('_uid',user.id)};
 const LOGO_SVG=`<svg width="64" height="64" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#10302b"/><path d="M150 160 L290 256 L150 352" fill="none" stroke="#00e5a0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="150" cy="160" r="34" fill="#0b0f14" stroke="#3ad7ff" stroke-width="16"/><circle cx="290" cy="256" r="38" fill="#0b0f14" stroke="#00e5a0" stroke-width="18"/><circle cx="150" cy="352" r="34" fill="#0b0f14" stroke="#00e5a0" stroke-width="16"/><rect x="318" y="330" width="96" height="30" rx="15" fill="#00e5a0"/></svg>`;
-const vLogin=()=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">App <b>BUT R&amp;T</b></h1><p class="sub">Connecte-toi pour accéder à ton espace</p>
-  ${oubli?`<div class="card"><h2>Mot de passe oublié</h2><p class="m" style="color:var(--mute);margin:0 0 12px">Tape ton e-mail : si le compte existe, tu recevras un lien pour choisir un nouveau mot de passe.</p><form class="f" data-f="reset" style="grid-template-columns:1fr"><input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required><button>Envoyer le lien</button></form><p style="margin:10px 0 0"><a href="#" data-oubli style="color:var(--cy)">← Retour à la connexion</a></p><p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">Pas reçu ? Demande à l'admin de l'app de te donner un mot de passe provisoire.</p></div>`
-  :`<div class="card"><form class="f" data-f="login" style="grid-template-columns:1fr"><input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required><input name="pw" type="password" autocomplete="current-password" minlength="8" placeholder="Mot de passe (8 caractères min.)" required><button name="act" value="in">Se connecter</button><button name="act" value="up" class="ghost">Créer un compte</button></form><p style="margin:12px 0 0;text-align:center"><a href="#" data-oubli style="color:var(--cy)">Mot de passe oublié ?</a></p></div>`}
-  <p class="m" style="color:var(--mute);font-size:13px;text-align:center;margin-top:16px">Tes données sont privées : personne d'autre ne peut les voir.</p></div>`;
+const oeil=`<label class="voir"><input type="checkbox" data-voirmdp> Afficher le mot de passe</label>`;
+const vLogin=()=>{const tete=(t,st)=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">${t}</h1><p class="sub">${st}</p>`;
+  if(oubli==='inscription')return tete('Créer ton <b>compte</b>','30 secondes et c\'est parti 🚀')+`
+  <div class="card"><form class="f" data-f="signup" style="grid-template-columns:1fr">
+   <label class="lab">Ton prénom<input name="prenom" autocomplete="given-name" placeholder="Ex : Youssouf" required></label>
+   <label class="lab">Ton adresse e-mail<input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required></label>
+   <label class="lab">Choisis un mot de passe<input name="pw" type="password" autocomplete="new-password" minlength="8" placeholder="8 caractères minimum" required></label>
+   <label class="lab">Retape-le pour vérifier<input name="pw2" type="password" autocomplete="new-password" minlength="8" placeholder="Le même mot de passe" required></label>
+   ${oeil}<button>Créer mon compte</button></form></div>
+  <div class="bascule">Tu as déjà un compte ?<button class="ghost" data-auth="connexion">Se connecter</button></div></div>`;
+  if(oubli==='oubli')return tete('Mot de passe <b>oublié</b>','On t\'envoie un lien pour en choisir un nouveau')+`
+  <div class="card"><form class="f" data-f="reset" style="grid-template-columns:1fr"><label class="lab">Ton adresse e-mail<input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required></label><button>Envoyer le lien</button></form>
+  <p class="m" style="color:var(--mute);font-size:13px;margin:12px 0 0">Pas reçu ? Demande à l'admin de l'app de te donner un mot de passe provisoire.</p></div>
+  <div class="bascule"><button class="ghost" data-auth="connexion">← Retour à la connexion</button></div></div>`;
+  return tete('App <b>BUT R&amp;T</b>','Connecte-toi pour accéder à ton espace')+`
+  <div class="card"><form class="f" data-f="login" style="grid-template-columns:1fr">
+   <label class="lab">Adresse e-mail<input name="email" type="email" autocomplete="email" placeholder="ton@email.fr" required></label>
+   <label class="lab">Mot de passe<input name="pw" type="password" autocomplete="current-password" placeholder="Ton mot de passe" required></label>
+   ${oeil}<button>Se connecter</button></form>
+   <p style="margin:12px 0 0;text-align:center"><a href="#" data-auth="oubli" style="color:var(--cy)">Mot de passe oublié ?</a></p></div>
+  <div class="bascule">Première fois sur l'app ?<button data-auth="inscription">Créer un compte</button></div>
+  <p class="m" style="color:var(--mute);font-size:13px;text-align:center;margin-top:16px">Tes données sont privées : personne d'autre ne peut les voir.</p></div>`};
 const vNouveauMdp=()=>`<div class="login">${LOGO_SVG}<h1 style="margin-top:18px">Nouveau <b>mot de passe</b></h1><p class="sub">Choisis ton nouveau mot de passe</p>
   <div class="card"><form class="f" data-f="newpw" style="grid-template-columns:1fr"><input name="pw" type="password" autocomplete="new-password" minlength="8" placeholder="Nouveau mot de passe" required><input name="pw2" type="password" autocomplete="new-password" minlength="8" placeholder="Confirme-le" required><button>Enregistrer</button></form></div></div>`;
 const changerMdp=async(pw,pw2)=>{
@@ -240,11 +260,21 @@ const checkAdmin=async()=>{if(!sbUser)return;const avant=isAdmin;
 const debutSession=user=>{isAdmin=S.get('_admin',null)===user.id?true:null;buildNav();checkAdmin()};
 
 
-const login=async(email,password,create)=>{
+const erreurAuth=m=>/invalid login|invalid_credentials/i.test(m)?'E-mail ou mot de passe incorrect'
+  :/already registered|already exists/i.test(m)?'Cette adresse a déjà un compte : clique sur « Se connecter »'
+  :/signups? (not allowed|disabled)/i.test(m)?'Les inscriptions sont fermées pour l\'instant : demande à l\'admin de l\'app'
+  :/banned/i.test(m)?'Ce compte est désactivé : contacte l\'admin'
+  :/rate limit|too many/i.test(m)?'Trop d\'essais, attends une minute'
+  :/password/i.test(m)?'Mot de passe refusé : 8 caractères minimum'
+  :/email/i.test(m)?'Adresse e-mail invalide':'Erreur : '+m;
+const login=async(email,password,create,prenom)=>{
   const {data,error}=create?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
-  if(error){toast(/invalid/i.test(error.message)?'E-mail ou mot de passe incorrect':'Erreur : '+error.message);return}
+  if(error){toast(erreurAuth(error.message));return}
+  if(create&&data.user&&!data.user.identities?.length){toast('Cette adresse a déjà un compte : clique sur « Se connecter »');return}
   if(!data.session){toast('Compte créé, mais Supabase demande une confirmation par e-mail : désactive « Confirm email »');return}
-  await prendreCompte(data.user);sbUser=data.user;debutSession(data.user);toast(create?'Compte créé ✓':'Connecté ✓');render();syncNow();
+  await prendreCompte(data.user);sbUser=data.user;oubli=false;
+  if(create&&prenom)S.set('profil',{...profil(),prenom});
+  debutSession(data.user);toast(create?`Bienvenue${prenom?' '+prenom:''} 👋`:'Connecté ✓');location.hash='';render();syncNow();
 };
 const syncCard=()=>{
   if(!sb)return `<div class="card"><h2>Synchronisation</h2><p class="empty">${SB_URL.startsWith('__')?'Supabase pas encore configuré.':'Synchronisation indisponible ici (ouvre l\'app depuis ton site GitHub).'}</p></div>`;
@@ -509,7 +539,7 @@ V.moi=()=>{const p=profil();
   ${securiteCard()}
   ${trajetForm()}
   ${notifCard().replace('style="margin-top:16px"','style="margin-bottom:16px"')}
-  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.5 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
+  <div class="card"><h2>L'app</h2><p class="m" style="color:var(--mute);margin:0">App BUT R&amp;T · v1.6 · conçue et développée par Youssouf MOHAMED YACOB FARIZ avec l'aide de Claude.<br>Emploi du temps : Formadep · Transports : Île-de-France Mobilités (PRIM).</p></div>`;
 };
 /* ---------- Fiche d'un cours ---------- */
 let sheetC=null;
@@ -988,7 +1018,7 @@ const textePdf=async blob=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnj
   const doc=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise;let t='';
   for(let i=1;i<=doc.numPages;i++){const c=await (await doc.getPage(i)).getTextContent();t+=c.items.map(x=>x.str).join(' ')+'\n'}
   return t.replace(/[ \t]+/g,' ').trim()};
-const PARTIE=17000;   // un long cours est coupé en parties (l'IA ne lit pas tout d'un coup)
+const PARTIE=60000;   // un long cours est coupé en parties (l'IA ne lit pas tout d'un coup)
 let quizTexte={id:null,t:''};
 const genererQuiz=async(texte,titre,module,nb)=>{
   if(quizBusy)return;quizBusy=true;render();
@@ -1030,12 +1060,12 @@ const quizView=()=>{if(quizRun)return quizPlay();
   return `<div class="grid"><div class="card"><h2>Nouveau quiz 🧠</h2>
    <div class="chips" style="margin-bottom:12px"><button class="${quizSrc==='pdf'?'on':''}" data-qsrc="pdf">📄 Guide PDF</button><button class="${quizSrc==='texte'?'on':''}" data-qsrc="texte">✍️ Texte</button><button class="${quizSrc==='cartes'?'on':''}" data-qsrc="cartes">🃏 Flashcards</button></div>
    ${quizSrc==='pdf'?(meta.length?`<form class="f" data-f="qpdf" style="grid-template-columns:1fr"><select name="id" required>${meta.map(p=>`<option value="${esc(p.id)}">${esc(p.module)} · ${esc(p.name)}</option>`).join('')}</select>
-     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option></select>
-     <button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA écrit tes questions…':'✨ Générer le quiz'}</button></form>`:'<p class="empty">Dépose d\'abord un guide PDF dans l\'onglet Guides.</p>')
+     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option><option value="15">15 questions</option></select>
+     <button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA lit ton cours… (10 à 30 s)':'✨ Générer le quiz'}</button></form>`:'<p class="empty">Dépose d\'abord un guide PDF dans l\'onglet Guides.</p>')
    :quizSrc==='texte'?`<form class="f" data-f="qtexte" style="grid-template-columns:1fr"><input name="titre" placeholder="Titre (ex : R101 · Modèle OSI)" required><input name="module" placeholder="Module (ex : R101)"><textarea name="texte" rows="7" placeholder="Colle ici le texte de ton cours (au moins quelques paragraphes)" required></textarea>
-     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option></select><button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA écrit tes questions…':'✨ Générer le quiz'}</button></form>`
+     <select name="nb"><option value="5">5 questions</option><option value="8" selected>8 questions</option><option value="12">12 questions</option><option value="15">15 questions</option></select><button ${quizBusy?'disabled':''}>${quizBusy?'⏳ L\'IA lit ton cours… (10 à 30 s)':'✨ Générer le quiz'}</button></form>`
    :(modsC.length?`<form class="f" data-f="qcartes" style="grid-template-columns:1fr"><select name="module"><option value="">Tous les modules</option>${modsC.map(m=>`<option>${esc(m)}</option>`).join('')}</select><button>▶ Lancer (sans IA, marche hors ligne)</button></form>`:'<p class="empty">Crée d\'abord des flashcards.</p>')}
-   <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">${quizSrc==='cartes'?'Les mauvaises réponses sont tirées de tes autres flashcards : il en faut au moins 4.':'L\'IA lit ton cours et invente les questions. Elle peut se tromper : en cas de doute, vérifie dans ton cours. Limite : 5 quiz IA par jour.'}</p>
+   <p class="m" style="color:var(--mute);font-size:13px;margin:10px 0 0">${quizSrc==='cartes'?'Les mauvaises réponses sont tirées de tes autres flashcards : il en faut au moins 4.':'L\'IA lit ton cours et invente les questions. Elle peut se tromper : en cas de doute, vérifie dans ton cours. Elle lit ton cours en entier (jusqu\'à ~40 pages). Limite : 10 quiz IA par jour.'}</p>
    ${quizTexte.parties>1?`<p class="m" style="color:var(--warn);font-size:13px;margin:8px 0 0">Ce cours est long : l'IA a travaillé sur la partie ${quizTexte.n} / ${quizTexte.parties}. Relance pour la partie suivante.</p>`:''}</div>
   <div class="card"><h2>Mes quiz</h2>${l.map(q=>{const e=der(q);return `<div class="row"><span class="t">${esc(q.titre)}<div class="m">${q.source==='ia'?'✨ IA':'🃏 Flashcards'} · ${q.questions.length} questions${e?` · dernier score <b class="${e.score/e.total>=.5?'ok':'ko'}">${e.score}/${e.total}</b>`:''}</div></span><button class="ghost" style="flex:none" data-qgo="${esc(q.id)}">▶</button><button class="x" data-qdel="${esc(q.id)}" aria-label="Supprimer">×</button></div>`}).join('')||'<p class="empty">Aucun quiz pour l\'instant.</p>'}</div></div>`};
 
@@ -1066,7 +1096,10 @@ document.addEventListener('submit',async e=>{
   const f=e.target,k=f.dataset.f;if(!k)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
   if(k==='trajet'){S.set('trajet',{de:d.de.trim(),vers:d.vers.trim(),marge:+d.marge||0});trajetRes={};toast('Itinéraire enregistré ✓');return render()}
   if(k==='profil'){S.set('profil',{prenom:d.prenom.trim(),groupe:d.groupe.trim()});toast('Profil enregistré ✓');return render()}
-  if(k==='login'){if(!sb){toast('Connexion en cours de chargement, réessaie dans 2 s');return}return login(d.email.trim(),d.pw,(e.submitter&&e.submitter.value)==='up')}
+  if(k==='login'||k==='signup'){if(!sb){toast('Connexion en cours de chargement, réessaie dans 2 s');return}
+    if(k==='signup'&&d.pw!==d.pw2){toast('Les deux mots de passe sont différents');return}
+    const b=f.querySelector('button:not([type=button])');b.disabled=true;b.textContent='Patiente…';
+    await login(d.email.trim(),d.pw,k==='signup',(d.prenom||'').trim());if(b.isConnected){b.disabled=false;b.textContent=k==='signup'?'Créer mon compte':'Se connecter'}return}
   if(k==='reset'){const {error}=await sb.auth.resetPasswordForEmail(d.email.trim(),{redirectTo:location.origin+location.pathname});toast(error?'Erreur : '+error.message:'Si ce compte existe, un e-mail est parti ✉');return}
   if(k==='newpw'){if(await changerMdp(d.pw,d.pw2)){recovery=false;history.replaceState(null,'',location.pathname);render()}return}
   if(k==='chpw'){if(await changerMdp(d.pw,d.pw2))f.reset();return}
@@ -1111,7 +1144,7 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
   if(e.target.id==='sheet'){$('#sheet').classList.remove('on');return}
   {const cc=e.target.closest('[data-cday]');if(cc&&!e.target.closest('button')){openCours(cc.dataset.cday,+cc.dataset.ci);return}}
-  if(e.target.closest('[data-oubli]')){e.preventDefault();oubli=!oubli;return render()}
+  const au=e.target.closest('[data-auth]');if(au){e.preventDefault();oubli=au.dataset.auth==='connexion'?false:au.dataset.auth;return render()}
   if(e.target.closest('[data-goabs]'))notesTab='abs';
   if(e.target.closest('[data-gofc]')){revTab='fc';fcAll=false}
   const t=e.target.closest('button,[data-flip],input[type=checkbox]');if(!t)return;
@@ -1178,6 +1211,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{if(e.target.matches('[data-q]')){netQ=e.target.value;$('#qres').innerHTML=netTab==='ports'?portsList():memoList()}});
 document.addEventListener('change',e=>{
   if(e.target.matches('[data-fm]')){fcMod=e.target.value;fcBack=false;render()}
+  if(e.target.matches('[data-voirmdp]')){e.target.closest('form').querySelectorAll('input[name^=pw]').forEach(i=>i.type=e.target.checked?'text':'password');return}
   if(e.target.matches('[data-pmod]')){S.raw('pomoCfg',{...pomoCfg(),mod:e.target.value});return}
   if(e.target.matches('[data-wk]')){edtWeek=e.target.value;S.get('edtf',{})[edtWeek]?render():loadEdt(edtWeek)}
 });
